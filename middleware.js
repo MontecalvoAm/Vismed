@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
-import { SESSION_COOKIE, SESSION_VALUE } from '@/lib/auth';
 
 // Protect any route under /quotation
 export function middleware(request) {
     const { pathname } = request.nextUrl;
 
-    if (pathname.startsWith('/quotation')) {
-        const sessionCookie = request.cookies.get(SESSION_COOKIE);
-        const isLoggedIn = sessionCookie?.value === SESSION_VALUE;
+    if (pathname.startsWith('/quotation') || pathname.startsWith('/admin')) {
+        const token = request.cookies.get('vm_token')?.value;
 
-        if (!isLoggedIn) {
+        if (!token) {
             const loginUrl = new URL('/login', request.url);
             return NextResponse.redirect(loginUrl);
         }
@@ -19,5 +17,5 @@ export function middleware(request) {
 }
 
 export const config = {
-    matcher: ['/quotation/:path*'],
+    matcher: ['/quotation/:path*', '/admin/:path*'],
 };

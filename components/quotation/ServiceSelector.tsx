@@ -1,21 +1,47 @@
 'use client';
 
-import { useState } from 'react';
-import departments from '@/data/departments';
+// ============================================================
+//  VisayasMed — Dynamic Service Selector
+//  Pulls Departments and Services directly from Firestore
+// ============================================================
+
+import { useState, useEffect } from 'react';
 import SearchableSelect from '@/components/ui/SearchableSelect';
-import { Plus, Minus, X, AlertCircle } from 'lucide-react';
+import { Plus, Minus, X, AlertCircle, Loader2 } from 'lucide-react';
+import { getDepartments, type Department } from '@/lib/firestore/departments';
+import { getAllServices, type Service } from '@/lib/firestore/services';
 
 const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
-export default function ServiceSelector({ items, onChange, onNext, onBack }) {
+export default function ServiceSelector({ items, onChange, onNext, onBack }: any) {
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [services, setServices] = useState<Service[]>([]);
+    const [loading, setLoading] = useState(true);
+
     const [selectedDeptId, setSelectedDeptId] = useState('');
     const [selectedServiceId, setSelectedServiceId] = useState('');
     const [sessions, setSessions] = useState(1);
     const [error, setError] = useState('');
 
-    const selectedDept = departments.find((d) => d.id === selectedDeptId);
-    const serviceOptions = selectedDept ? selectedDept.services : [];
-    const selectedService = serviceOptions.find((s) => s.id === selectedServiceId);
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [d, s] = await Promise.all([getDepartments(), getAllServices()]);
+                setDepartments(d);
+                setServices(s);
+            } catch (err: any) {
+                console.error("Firestore Loading Error:", err);
+                setError(`Failed to load data: ${err?.message || 'Unknown error'}`);
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, []);
+
+    const selectedDept = departments.find((d) => d.DepartmentID === selectedDeptId);
+    const serviceOptions = services.filter((s) => s.DepartmentID === selectedDeptId);
+    const selectedService = serviceOptions.find((s) => s.ServiceID === selectedServiceId);
 
     const handleDeptChange = (id: string) => {
         setSelectedDeptId(id);
@@ -31,7 +57,11 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
         const existing = items.findIndex((i: any) => i.serviceId === selectedServiceId);
         if (existing > -1) {
             const updated = [...items];
-            updated[existing] = { ...updated[existing], sessions: updated[existing].sessions + sessions, subtotal: updated[existing].unitPrice * (updated[existing].sessions + sessions) };
+            updated[existing] = {
+                ...updated[existing],
+                sessions: updated[existing].sessions + sessions,
+                subtotal: updated[existing].unitPrice * (updated[existing].sessions + sessions)
+            };
             onChange(updated);
         } else {
             onChange([
@@ -39,13 +69,13 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
                 {
                     id: `${selectedServiceId}-${Date.now()}`,
                     deptId: selectedDeptId,
-                    deptName: selectedDept?.name,
+                    deptName: selectedDept?.DepartmentName,
                     serviceId: selectedServiceId,
-                    serviceName: selectedService?.name,
-                    unitPrice: selectedService?.price,
-                    unit: selectedService?.unit,
+                    serviceName: selectedService?.ServiceName,
+                    unitPrice: selectedService?.Price,
+                    unit: selectedService?.Unit,
                     sessions,
-                    subtotal: (selectedService?.price || 0) * sessions,
+                    subtotal: (selectedService?.Price || 0) * sessions,
                 },
             ]);
         }
@@ -70,6 +100,15 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
         return acc;
     }, {});
 
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm font-medium text-slate-500">Loading catalog from VisayasMed servers...</p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col lg:flex-row gap-8">
             {/* Left: Component Panel */}
@@ -87,14 +126,14 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
                                 value={selectedDeptId}
                                 onChange={handleDeptChange}
                                 placeholder="Search department..."
-                                valueKey="id"
-                                displayKey="name"
-                                renderOption={(d: any) => (
+                                valueKey="DepartmentID"
+                                displayKey="DepartmentName"
+                                renderOption={(d: Department) => (
                                     <div className="flex items-center space-x-3">
-                                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500">{d.icon}</span>
+                                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500">{d.Icon}</span>
                                         <div className="flex flex-col">
-                                            <strong className="text-slate-800 font-medium">{d.name}</strong>
-                                            <small className="text-slate-500 text-xs">{d.description}</small>
+                                            <strong className="text-slate-800 font-medium">{d.DepartmentName}</strong>
+                                            <small className="text-slate-500 text-xs">{d.Description}</small>
                                         </div>
                                     </div>
                                 )}
@@ -108,15 +147,15 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
                                 value={selectedServiceId}
                                 onChange={(id: string) => { setSelectedServiceId(id); setError(''); }}
                                 placeholder={selectedDeptId ? 'Search service...' : 'Select a department first'}
-                                valueKey="id"
-                                displayKey="name"
-                                renderOption={(s: any) => (
+                                valueKey="ServiceID"
+                                displayKey="ServiceName"
+                                renderOption={(s: Service) => (
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
-                                        <span className="font-medium text-slate-800 mb-1 sm:mb-0 pr-4">{s.name}</span>
+                                        <span className="font-medium text-slate-800 mb-1 sm:mb-0 pr-4">{s.ServiceName}</span>
                                         <div className="flex items-center space-x-2 shrink-0">
-                                            <small className="text-slate-400 hidden sm:inline-block max-w-[120px] truncate">{s.description}</small>
+                                            <small className="text-slate-400 hidden sm:inline-block max-w-[120px] truncate">{s.Description}</small>
                                             <span className="inline-flex items-center bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded text-xs whitespace-nowrap">
-                                                {fmt(s.price)} <span className="text-green-600/60 font-medium ml-1">/{s.unit}</span>
+                                                {fmt(s.Price)} <span className="text-green-600/60 font-medium ml-1">/{s.Unit}</span>
                                             </span>
                                         </div>
                                     </div>
@@ -126,12 +165,12 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
 
                         {selectedService && (
                             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="font-semibold text-slate-800">{selectedService.name}</div>
-                                <div className="text-sm text-slate-500 mt-1 mb-3">{selectedService.description}</div>
+                                <div className="font-semibold text-slate-800">{selectedService.ServiceName}</div>
+                                <div className="text-sm text-slate-500 mt-1 mb-3">{selectedService.Description}</div>
                                 <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1">
                                     <span className="text-slate-500 text-sm">Unit Price</span>
                                     <div className="font-bold text-lg text-slate-800">
-                                        {fmt(selectedService.price)} <span className="text-sm font-normal text-slate-500">/{selectedService.unit}</span>
+                                        {fmt(selectedService.Price)} <span className="text-sm font-normal text-slate-500">/{selectedService.Unit}</span>
                                     </div>
                                 </div>
                             </div>
@@ -157,7 +196,7 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
                             {selectedService && (
                                 <div className="text-sm flex items-center pt-1 animate-in fade-in">
                                     <span className="text-slate-500">Subtotal:</span>
-                                    <strong className="ml-2 text-slate-800 font-bold">{fmt(selectedService.price * sessions)}</strong>
+                                    <strong className="ml-2 text-slate-800 font-bold">{fmt(selectedService.Price * sessions)}</strong>
                                 </div>
                             )}
                         </div>
@@ -171,7 +210,7 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
 
                         <button
                             type="button"
-                            className="w-full flex items-center justify-center py-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl shadow-sm transition-all active:scale-[0.98] mt-4"
+                            className="w-full flex items-center justify-center py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] mt-4 disabled:opacity-50"
                             onClick={handleAddService}
                         >
                             <Plus className="w-4 h-4 mr-2" /> Add to Quotation
@@ -285,7 +324,7 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }) {
                     </button>
                     <button
                         type="button"
-                        className="px-6 py-2.5 flex items-center justify-center font-medium bg-primary text-white rounded-xl shadow-sm transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-2.5 flex items-center justify-center font-medium bg-primary text-white rounded-xl shadow-sm transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                         onClick={() => { if (items.length === 0) { setError('Please add at least one service.'); return; } onNext(); }}
                     >
                         Review Quotation →

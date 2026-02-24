@@ -16,6 +16,16 @@
       "static/chunks/main-app.js",
       "static/chunks/app/login/page.js"
     ],
+    "/api/auth/me/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/auth/me/route.js"
+    ],
+    "/api/auth/session/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/auth/session/route.js"
+    ],
     "/quotation/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",

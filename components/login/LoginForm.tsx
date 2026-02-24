@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { checkCredentials, setSession } from '@/lib/auth';
+import { loginWithFirebase } from '@/lib/auth';
 import { User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginForm() {
     const router = useRouter();
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
@@ -18,14 +18,22 @@ export default function LoginForm() {
         setError('');
         setLoading(true);
 
-        // Simulate a short delay for UX feel
-        await new Promise((r) => setTimeout(r, 600));
-
-        if (checkCredentials(username, password)) {
-            setSession();
+        try {
+            await loginWithFirebase(email, password);
             router.push('/quotation');
-        } else {
-            setError('Invalid username or password. Please try again.');
+        } catch (err: any) {
+            // Map Firebase error codes to user-friendly messages
+            const code = err?.code ?? '';
+            if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+                setError('Invalid email or password. Please try again.');
+            } else if (code === 'auth/too-many-requests') {
+                setError('Too many failed attempts. Please try again later.');
+            } else if (code === 'auth/user-disabled') {
+                setError('This account has been disabled. Contact your administrator.');
+            } else {
+                setError(err?.message ?? 'An unexpected error occurred.');
+            }
+        } finally {
             setLoading(false);
         }
     };
@@ -33,19 +41,19 @@ export default function LoginForm() {
     return (
         <form className="w-full flex flex-col space-y-5" onSubmit={handleSubmit} noValidate>
             <div className="space-y-2">
-                <label className="text-sm font-medium text-neutral-300 ml-1" htmlFor="username">Username</label>
+                <label className="text-sm font-medium text-neutral-300 ml-1" htmlFor="email">Email</label>
                 <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500 group-focus-within:text-accent transition-colors">
                         <User className="h-5 w-5" />
                     </div>
                     <input
-                        id="username"
-                        type="text"
+                        id="email"
+                        type="email"
                         className="w-full pl-11 pr-4 py-3 bg-neutral-900/50 border border-neutral-700/50 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
-                        placeholder="Enter username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        autoComplete="username"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="email"
                         required
                     />
                 </div>
@@ -61,7 +69,7 @@ export default function LoginForm() {
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         className="w-full pl-11 pr-12 py-3 bg-neutral-900/50 border border-neutral-700/50 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
-                        placeholder="Enter password"
+                        placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete="current-password"
@@ -87,8 +95,8 @@ export default function LoginForm() {
 
             <button
                 type="submit"
-                className="w-full group mt-2 relative flex items-center justify-center py-3.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl overflow-hidden transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading || !username || !password}
+                className="w-full group mt-2 relative flex items-center justify-center py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl overflow-hidden transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                disabled={loading || !email || !password}
             >
                 {loading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
