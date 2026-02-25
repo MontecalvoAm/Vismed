@@ -113,9 +113,9 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
         <div className="flex flex-col lg:flex-row gap-8">
             {/* Left: Component Panel */}
             <div className="w-full lg:w-5/12 space-y-6">
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-sm">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center">
-                        <Plus className="w-5 h-5 mr-2 text-primary" /> Add a Service
+                <div className="bg-white/95 backdrop-blur-md border border-slate-300 rounded-2xl p-6 shadow-md relative z-10">
+                    <h3 className="text-lg font-bold text-brand-dark-blue mb-6 flex items-center">
+                        <Plus className="w-5 h-5 mr-2 text-brand-lime-green" /> Add a Service
                     </h3>
 
                     <div className="space-y-5">
@@ -178,7 +178,7 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
 
                         <div className="space-y-1.5 pt-2">
                             <label className="text-sm font-medium text-slate-700">Number of Sessions / Quantity</label>
-                            <div className="flex items-center w-full max-w-[200px] h-11 border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                            <div className="flex items-center w-full max-w-[200px] h-11 border border-slate-300 rounded-xl bg-white overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-brand-muted-blue/20 focus-within:border-brand-muted-blue transition-all">
                                 <button type="button" className="w-12 h-full flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-slate-700 active:bg-slate-100 transition-colors" onClick={() => setSessions((s) => Math.max(1, s - 1))} aria-label="Decrease quantity">
                                     <Minus className="w-4 h-4" />
                                 </button>
@@ -210,7 +210,7 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
 
                         <button
                             type="button"
-                            className="w-full flex items-center justify-center py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] mt-4 disabled:opacity-50"
+                            className="w-full flex items-center justify-center py-3 bg-brand-dark-blue text-white font-semibold rounded-xl hover:bg-brand-muted-blue focus:ring-2 focus:ring-brand-dark-blue transition-all active:scale-[0.98] mt-4 disabled:opacity-50 shadow-md"
                             onClick={handleAddService}
                         >
                             <Plus className="w-4 h-4 mr-2" /> Add to Quotation
@@ -220,24 +220,24 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
             </div>
 
             {/* Right: Selected Summary Panel */}
-            <div className="w-full lg:w-7/12 flex flex-col h-full min-h-[500px]">
-                <div className="flex-grow flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="w-full lg:w-7/12 flex flex-col h-full min-h-[500px] relative z-10">
+                <div className="flex-grow flex flex-col bg-white/95 backdrop-blur-md border border-slate-300 rounded-2xl shadow-md overflow-hidden flex flex-col h-full">
 
                     {/* Header */}
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
-                        <h3 className="text-lg font-bold text-slate-800">Selected Services</h3>
+                    <div className="px-6 py-4 border-b border-slate-200 bg-white/95 flex items-center justify-between shrink-0">
+                        <h3 className="text-lg font-bold text-brand-dark-blue">Selected Services</h3>
                         {items.length > 0 && (
-                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold border border-primary/20">
+                            <span className="bg-brand-muted-blue/10 text-brand-dark-blue px-3 py-1 rounded-full text-sm font-semibold border border-brand-muted-blue/20">
                                 {items.length} item{items.length !== 1 ? 's' : ''}
                             </span>
                         )}
                     </div>
 
                     {/* Scrollable list */}
-                    <div className="flex-grow overflow-y-auto p-6 bg-white min-h-[320px]">
+                    <div className="flex-grow overflow-y-auto p-6 min-h-[320px]">
                         {items.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4 animate-in fade-in zoom-in duration-300">
-                                <div className="w-16 h-16 bg-slate-50 flex items-center justify-center rounded-2xl border border-slate-100 shadow-inner">
+                                <div className="w-16 h-16 bg-brand-light-grey/20 flex items-center justify-center rounded-2xl border border-slate-200 shadow-inner">
                                     <span className="text-3xl opacity-50">🗒️</span>
                                 </div>
                                 <div>
@@ -256,10 +256,10 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
 
                                         <div className="space-y-2.5">
                                             {deptItems.map((item: any) => (
-                                                <div key={item.id} className="group flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all relative overflow-hidden">
+                                                <div key={item.id} className="group flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-white border border-slate-300 rounded-xl hover:border-brand-muted-blue hover:shadow-md transition-all relative overflow-hidden">
 
                                                     {/* Decorator line */}
-                                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 group-hover:bg-primary transition-colors"></div>
+                                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 group-hover:bg-brand-muted-blue transition-colors"></div>
 
                                                     <div className="flex-1 min-w-0 pr-4 pl-2">
                                                         <div className="font-semibold text-slate-800 mb-0.5 truncate">{item.serviceName}</div>
@@ -309,22 +309,22 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
                     </div>
 
                     {/* Total Bar */}
-                    <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between shrink-0 rounded-b-2xl">
+                    <div className="p-6 bg-white/95 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between shrink-0 rounded-b-2xl">
                         <div className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-1 sm:mb-0">Grand Total</div>
-                        <div className="text-2xl font-black text-primary tabular-nums tracking-tight">
+                        <div className="text-2xl font-black text-brand-dark-blue tabular-nums tracking-tight">
                             {fmt(grandTotal)}
                         </div>
                     </div>
                 </div>
 
                 {/* Navigation actions */}
-                <div className="flex items-center justify-between mt-6">
-                    <button type="button" className="px-5 py-2.5 flex items-center font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200" onClick={onBack}>
+                <div className="flex items-center justify-between mt-6 relative z-10 bg-white/80 backdrop-blur p-4 rounded-xl shadow-sm border border-slate-200">
+                    <button type="button" className="px-5 py-2.5 flex items-center font-bold text-brand-muted-blue hover:text-brand-dark-blue hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200" onClick={onBack}>
                         ← Back
                     </button>
                     <button
                         type="button"
-                        className="px-6 py-2.5 flex items-center justify-center font-medium bg-primary text-white rounded-xl shadow-sm transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                        className="px-6 py-2.5 flex items-center justify-center font-medium bg-brand-dark-blue text-white rounded-xl shadow-md transition-all hover:bg-brand-muted-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-dark-blue disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                         onClick={() => { if (items.length === 0) { setError('Please add at least one service.'); return; } onNext(); }}
                     >
                         Review Quotation →

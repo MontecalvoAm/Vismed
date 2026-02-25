@@ -4,17 +4,23 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222.2 47.4% 11.2%;
-
-    --primary: 210 100% 40%;
+    /* Muted Blue: #416BA9 -> HSL(216, 44%, 46%) */
+    --primary: 216 44% 46%;
     --primary-foreground: 210 20% 98%;
 
-    --secondary: 214.3 31.8% 91.4%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Dark Blue: #2B5597 -> HSL(216, 55%, 38%) */
+    --secondary: 216 55% 38%;
+    /* Set foreground to a light color for contrast against dark blue */
+    --secondary-foreground: 210 20% 98%;
 
-    --accent: 196 100% 45%;
+    /* Bright Red: #F32735 -> HSL(356, 90%, 55%) */
+    --accent: 356 90% 55%;
     --accent-foreground: 210 20% 98%;
+
+    /* Light Grey: #C4BEB6 -> HSL(33, 11%, 74%) */
+    --background: 210 40% 98%;
+    /* Keep main bg slightly off-white for readability, but we'll use light-grey for cards/sidebar */
+    --foreground: 222.2 47.4% 11.2%;
   }
 
   body {
@@ -24,11 +30,12 @@
 }
 
 @layer components {
+
   /* Minimal medical aesthetic button base */
   .btn-base {
-    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 px-4 py-2 h-10;
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 px-4 py-2 h-10;
   }
-  
+
   .btn-primary {
     @apply btn-base bg-primary text-primary-foreground shadow hover:bg-primary/90;
   }
@@ -36,7 +43,7 @@
   .btn-secondary {
     @apply btn-base bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80;
   }
-  
+
   .btn-outline {
     @apply btn-base border border-neutral-300 bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-accent;
   }

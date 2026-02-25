@@ -23,6 +23,13 @@ const config: Config = {
                     DEFAULT: 'hsl(var(--accent))',
                     foreground: 'hsl(var(--accent-foreground))',
                 },
+                brand: {
+                    'muted-blue': '#416BA9',
+                    'dark-blue': '#2B5597',
+                    'light-grey': '#C4BEB6',
+                    'bright-red': '#F32735',
+                    'lime-green': '#A2D45E',
+                }
             },
         },
     },

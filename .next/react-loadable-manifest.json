@@ -1,4 +1,22 @@
 {
+  "components\\history\\PdfViewerModal.tsx -> html2canvas": {
+    "id": "components\\history\\PdfViewerModal.tsx -> html2canvas",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_html2canvas_dist_html2canvas_js.js"
+    ]
+  },
+  "components\\history\\PdfViewerModal.tsx -> jspdf": {
+    "id": "components\\history\\PdfViewerModal.tsx -> jspdf",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_jspdf_dist_jspdf_es_min_js.js"
+    ]
+  },
+  "components\\quotation\\QuotationSummary.tsx -> @/lib/firestore/quotations": {
+    "id": "components\\quotation\\QuotationSummary.tsx -> @/lib/firestore/quotations",
+    "files": [
+      "static/chunks/_app-pages-browser_lib_firestore_quotations_ts.js"
+    ]
+  },
   "components\\quotation\\QuotationSummary.tsx -> html2canvas": {
     "id": "components\\quotation\\QuotationSummary.tsx -> html2canvas",
     "files": [

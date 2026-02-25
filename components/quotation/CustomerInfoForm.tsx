@@ -1,17 +1,26 @@
 'use client';
 
-import { UserSquare2, Phone, Mail, MapPin, Stethoscope, FileText, Calendar, ArrowRight } from 'lucide-react';
+import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight } from 'lucide-react';
 
-export default function CustomerInfoForm({ data, onChange, onNext }) {
-    const handleChange = (e) => onChange({ ...data, [e.target.name]: e.target.value });
+interface CustomerInfoFormProps {
+    data: any;
+    onChange: (data: any) => void;
+    onNext: () => void;
+}
 
-    const handleSubmit = (e) => {
+export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInfoFormProps) {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+        onChange({ ...data, [e.target.name]: e.target.value });
+
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (typeof onNext === 'function') onNext();
     };
 
-    const inputClasses = "w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm";
-    const selectClasses = "w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm cursor-pointer";
+    const inputClasses =
+        'w-full pl-10 pr-4 py-2.5 bg-white/95 backdrop-blur border border-slate-300 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-muted-blue/20 focus:border-brand-muted-blue transition-all shadow-md relative z-10 font-medium';
+    const selectClasses =
+        'w-full pl-10 pr-10 py-2.5 bg-white/95 backdrop-blur border border-slate-300 rounded-xl text-slate-900 appearance-none focus:outline-none focus:ring-2 focus:ring-brand-muted-blue/20 focus:border-brand-muted-blue transition-all shadow-md cursor-pointer relative z-10 font-medium';
 
     return (
         <form className="space-y-8" onSubmit={handleSubmit}>
@@ -19,7 +28,9 @@ export default function CustomerInfoForm({ data, onChange, onNext }) {
 
                 {/* 1. Name */}
                 <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Patient / Customer Name <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-medium text-slate-700">
+                        Patient / Customer Name <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                             <UserSquare2 className="h-4 w-4" />
@@ -53,14 +64,18 @@ export default function CustomerInfoForm({ data, onChange, onNext }) {
                             <option value="Prefer not to say">Prefer not to say</option>
                         </select>
                         <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
                     </div>
                 </div>
 
                 {/* 4. Contact */}
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Contact Number <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-medium text-slate-700">
+                        Contact Number <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                             <Phone className="h-4 w-4" />
@@ -91,20 +106,11 @@ export default function CustomerInfoForm({ data, onChange, onNext }) {
                     </div>
                 </div>
 
-                {/* 7. Physician */}
-                <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Attending Physician <span className="text-slate-400 font-normal">(optional)</span></label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                            <Stethoscope className="h-4 w-4" />
-                        </div>
-                        <input type="text" name="physician" className={inputClasses} placeholder="Dr. Full Name" value={data.physician || ''} onChange={handleChange} />
-                    </div>
-                </div>
-
-                {/* 8. Remarks */}
-                <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Remarks / Complaint <span className="text-slate-400 font-normal">(optional)</span></label>
+                {/* 7. Remarks */}
+                <div className="md:col-span-2 space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">
+                        Remarks / Complaint <span className="text-slate-400 font-normal">(optional)</span>
+                    </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                             <FileText className="h-4 w-4" />
@@ -121,7 +127,12 @@ export default function CustomerInfoForm({ data, onChange, onNext }) {
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Quotation Date</span>
                     <span className="font-medium text-slate-800">{data.date}</span>
                 </div>
-                <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
+                <div className="hidden sm:block w-px h-10 bg-slate-200" />
+                <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Prepared By</span>
+                    <span className="font-medium text-slate-800">{data.preparedBy || '—'}</span>
+                </div>
+                <div className="hidden sm:block w-px h-10 bg-slate-200" />
                 <div className="flex flex-col sm:items-end">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Quotation No.</span>
                     <span className="font-mono font-bold text-lg text-primary">{data.quotationNo}</span>
@@ -129,7 +140,10 @@ export default function CustomerInfoForm({ data, onChange, onNext }) {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-100">
-                <button type="submit" className="group flex items-center justify-center py-2.5 px-6 bg-primary text-white font-medium rounded-xl transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-sm">
+                <button
+                    type="submit"
+                    className="group flex items-center justify-center py-2.5 px-6 bg-primary text-white font-medium rounded-xl transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-sm"
+                >
                     Next: Select Services
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </button>
