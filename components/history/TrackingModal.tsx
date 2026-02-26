@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { QuotationRecord, updateQuotationItems, QuotationItem } from '@/lib/firestore/quotations';
+import { createAuditLog } from '@/lib/firestore/audit';
 import { X, Save, Clock, Package, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
 
 interface TrackingModalProps {
     isOpen: boolean;
     onClose: () => void;
     quotation: QuotationRecord | null;
+    initialItemIndex?: number | null;
     onSaveSuccess: () => void;
 }
 
-export default function TrackingModal({ isOpen, onClose, quotation, onSaveSuccess }: TrackingModalProps) {
+export default function TrackingModal({ isOpen, onClose, quotation, initialItemIndex, onSaveSuccess }: TrackingModalProps) {
     const [items, setItems] = useState<QuotationItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -70,7 +72,7 @@ export default function TrackingModal({ isOpen, onClose, quotation, onSaveSucces
                 if (totalUsed === totalQty && quotation.Status !== 'Completed') {
                     updatedStatus = 'Completed';
                 } else if (totalUsed < totalQty && quotation.Status === 'Completed') {
-                    updatedStatus = 'Incomplete Sessions';
+                    updatedStatus = 'Incomplete';
                 }
             }
 
@@ -79,6 +81,20 @@ export default function TrackingModal({ isOpen, onClose, quotation, onSaveSucces
                 items,
                 updatedStatus !== quotation.Status ? updatedStatus : undefined
             );
+
+            // Calculate exact audit payload
+            const changes = items.filter((item, i) => item.Used !== quotation.Items[i].Used)
+                .map(item => `${item.Name}: ${quotation.Items[items.indexOf(item)].Used || 0} -> ${item.Used}`);
+            if (changes.length > 0) {
+                await createAuditLog({
+                    Action: 'UPDATE_TRACKING',
+                    Module: 'Quotation',
+                    RecordID: quotation.id,
+                    Description: `Updated usage tracking on ${changes.length} item(s)`,
+                    OldValues: { Items: quotation.Items.map(i => ({ Id: i.Id, Used: i.Used || 0 })) },
+                    NewValues: { Items: items.map(i => ({ Id: i.Id, Used: i.Used || 0 })) },
+                });
+            }
 
             onSaveSuccess();
             onClose();
@@ -165,10 +181,12 @@ export default function TrackingModal({ isOpen, onClose, quotation, onSaveSucces
                             const isCompleted = used === max;
                             const isSession = item.Unit?.toLowerCase().includes('session');
 
+                            const isHighlighted = initialItemIndex === index;
+
                             return (
                                 <div
                                     key={index}
-                                    className={`relative p-4 rounded-xl border transition-all ${isCompleted ? 'bg-green-50/50 border-green-200' : 'bg-white border-slate-200 shadow-sm'}`}
+                                    className={`relative p-4 rounded-xl border transition-all ${isCompleted ? 'bg-green-50/50 border-green-200' : isHighlighted ? 'bg-brand-muted-blue/5 border-brand-muted-blue shadow-md scale-[1.01]' : 'bg-white border-slate-200 shadow-sm'}`}
                                 >
                                     {isCompleted && (
                                         <div className="absolute top-0 right-0 -mr-1 -mt-1 w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center border-2 border-white shadow-sm">

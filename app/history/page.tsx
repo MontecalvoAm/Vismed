@@ -38,11 +38,12 @@ export default function HistoryPage() {
         let result = quotations;
 
         if (searchTerm) {
-            const q = searchTerm.toLowerCase();
+            const qStr = searchTerm.toLowerCase();
             result = result.filter(
                 (r) =>
-                    (r.CustomerName ?? '').toLowerCase().includes(q) ||
-                    (r.CustomerEmail ?? '').toLowerCase().includes(q)
+                    (r.CustomerName ?? '').toLowerCase().includes(qStr) ||
+                    (r.CustomerEmail ?? '').toLowerCase().includes(qStr) ||
+                    (r.Items ?? []).some(item => (item.Name ?? '').toLowerCase().includes(qStr))
             );
         }
 

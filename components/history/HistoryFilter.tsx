@@ -48,7 +48,7 @@ export default function HistoryFilter({
                         onChange={(e) => onStatusChange(e.target.value)}
                     >
                         <option value="all">All Statuses</option>
-                        <option value="Incomplete Sessions">Incomplete Sessions</option>
+                        <option value="Incomplete">Incomplete</option>
                         <option value="Waiting for Approval">Waiting for Approval</option>
                         <option value="Completed">Completed</option>
                     </select>

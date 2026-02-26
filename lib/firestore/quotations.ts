@@ -33,7 +33,7 @@ export interface QuotationRecord {
     Subtotal: number;
     Vat: number;
     Total: number;
-    Status: 'Incomplete Sessions' | 'Waiting for Approval' | 'Completed';
+    Status: 'Incomplete' | 'Waiting for Approval' | 'Completed';
     CreatedAt?: any;
     UpdatedAt?: any;
 }

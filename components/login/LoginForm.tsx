@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginWithFirebase } from '@/lib/auth';
 import { User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginForm() {
     const router = useRouter();
+    const { refreshUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +22,7 @@ export default function LoginForm() {
 
         try {
             await loginWithFirebase(email, password);
+            await refreshUser();
             router.push('/quotation');
         } catch (err: any) {
             // Map Firebase error codes to user-friendly messages

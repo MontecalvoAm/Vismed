@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
     const token = req.cookies.get('vm_token')?.value;
 
     if (!token) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return NextResponse.json({ authenticated: false, error: 'Unauthorized' }, { status: 200 });
     }
 
     try {
@@ -105,12 +105,12 @@ export async function GET(req: NextRequest) {
         );
 
         if (!verifyRes.ok) {
-            return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
+            return NextResponse.json({ authenticated: false, error: 'Session expired. Please log in again.' }, { status: 200 });
         }
 
         const verifyData = await verifyRes.json();
         if (!verifyData.users?.length) {
-            return NextResponse.json({ error: 'User not found.' }, { status: 401 });
+            return NextResponse.json({ authenticated: false, error: 'User not found.' }, { status: 200 });
         }
 
         const UserID: string = verifyData.users[0].localId;

@@ -43,7 +43,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const res = await fetch('/api/auth/me');
             if (res.ok) {
                 const data = await res.json();
-                setUser(data);
+                if (data.authenticated === false || data.error) {
+                    setUser(null);
+                } else {
+                    setUser(data);
+                }
             } else {
                 // Fail-secure: any error means not authenticated
                 setUser(null);
