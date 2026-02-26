@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
 
@@ -31,19 +31,37 @@ export async function POST(req: Request) {
             hashedPassword = await bcrypt.hash(Password, salt);
         }
 
-        const newUserRef = adminDb.collection(COL).doc();
-        await newUserRef.set({
-            Email: Email || '',
-            FirstName: FirstName || '',
-            LastName: LastName || '',
-            RoleID: RoleID || 'staff',
-            IsActive: IsActive !== undefined ? IsActive : true,
-            Password: hashedPassword,
-            CreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            UpdatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+        let firebaseUser;
+        try {
+            firebaseUser = await adminAuth.createUser({
+                email: Email,
+                password: Password || 'VisayasMed@123', // Provide a default or require it
+                displayName: `${FirstName} ${LastName}`,
+                disabled: !(IsActive !== undefined ? IsActive : true)
+            });
+        } catch (authError: any) {
+            return NextResponse.json({ success: false, error: authError.message || 'Failed to create user in Firebase Auth' }, { status: 400 });
+        }
 
-        return NextResponse.json({ success: true, UserID: newUserRef.id });
+        try {
+            const newUserRef = adminDb.collection(COL).doc(firebaseUser.uid);
+            await newUserRef.set({
+                Email: Email || '',
+                FirstName: FirstName || '',
+                LastName: LastName || '',
+                RoleID: RoleID || 'staff',
+                IsActive: IsActive !== undefined ? IsActive : true,
+                Password: hashedPassword,
+                CreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                UpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            return NextResponse.json({ success: true, UserID: newUserRef.id });
+        } catch (dbError: any) {
+            // Rollback Firebase Auth user if Firestore fails
+            await adminAuth.deleteUser(firebaseUser.uid);
+            return NextResponse.json({ success: false, error: dbError.message || 'Failed to save user in database' }, { status: 500 });
+        }
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }

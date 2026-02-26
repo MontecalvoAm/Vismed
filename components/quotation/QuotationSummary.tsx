@@ -29,7 +29,7 @@ export default function QuotationSummary({ customer, items, onBack, preparedBy }
         Subtotal: grandTotal,
         Vat: 0,
         Total: grandTotal,
-        Status: 'Incomplete Sessions' as const,
+        Status: 'Incomplete' as const,
     };
 
     const handleDownload = async () => {

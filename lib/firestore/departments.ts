@@ -12,7 +12,7 @@ import { db, generateUUIDv7 } from '@/lib/firebase';
 export interface Department {
     DepartmentID: string;
     DepartmentName: string;
-    Icon: string;
+    Icon?: string;
     Description: string;
     SortOrder: number;
     IsActive: boolean;
@@ -38,7 +38,7 @@ export async function getDepartments(): Promise<Department[]> {
 export async function addDepartment(
     data: Omit<Department, 'DepartmentID' | 'CreatedAt' | 'UpdatedAt'>,
     createdBy: string
-): Promise<void> {
+): Promise<string> {
     const id = generateUUIDv7();
     await setDoc(doc(db, COL, id), {
         ...data,
@@ -49,6 +49,7 @@ export async function addDepartment(
         UpdatedAt: serverTimestamp(),
         UpdatedBy: createdBy,
     });
+    return id;
 }
 
 export async function updateDepartment(

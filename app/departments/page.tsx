@@ -22,7 +22,7 @@ export default function DepartmentsPage() {
 
     return (
         <SidebarLayout pageTitle="Departments Management">
-            <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto w-full">
+            <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
                 <DepartmentManager />
             </div>
         </SidebarLayout>

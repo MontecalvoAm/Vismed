@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
 
@@ -20,9 +20,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
+        const firebaseUpdateData: any = {};
+        if (Email) firebaseUpdateData.email = Email;
+        if (FirstName || LastName) firebaseUpdateData.displayName = `${FirstName || ''} ${LastName || ''}`.trim();
+        if (IsActive !== undefined) firebaseUpdateData.disabled = !IsActive;
+
         if (Password && Password.trim() !== '') {
             const salt = await bcrypt.genSalt(10);
             updateData.Password = await bcrypt.hash(Password, salt);
+            firebaseUpdateData.password = Password;
         } else {
             // Ensure we don't accidentally overwrite password with empty
             delete updateData.Password;
@@ -31,6 +37,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         // remove undefined values
         Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
+        // 1. Update Firebase Auth (if there's anything to update)
+        if (Object.keys(firebaseUpdateData).length > 0) {
+            try {
+                await adminAuth.updateUser(resolvedParams.id, firebaseUpdateData);
+            } catch (authError: any) {
+                // If it's a "user not found" error, it means the user was manually created in Firestore
+                // before Firebase Auth integration. We might want to handle this gracefully or ignore.
+                console.error(`Failed to update Firebase Auth user: ${authError.message}`);
+            }
+        }
+
+        // 2. Update Firestore
         await adminDb.collection(COL).doc(resolvedParams.id).update(updateData);
 
         return NextResponse.json({ success: true });
@@ -42,6 +60,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const resolvedParams = await params;
+
+        // 1. Delete from Firebase Auth
+        try {
+            await adminAuth.deleteUser(resolvedParams.id);
+        } catch (authError: any) {
+            console.error(`Failed to delete Firebase Auth user: ${authError.message}`);
+            // Proceed anyway to delete from Firestore
+        }
+
+        // 2. Delete from Firestore
         await adminDb.collection(COL).doc(resolvedParams.id).delete();
         return NextResponse.json({ success: true });
     } catch (e: any) {

@@ -8,7 +8,7 @@ import RoleModal from '@/components/users/RoleModal';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import {
     Plus, Edit2, Trash2, Shield, User as UserIcon,
-    Users, ShieldCheck, CheckCircle, XCircle
+    Users, ShieldCheck, CheckCircle, XCircle, Search, Filter, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 type ActiveTab = 'users' | 'roles';
@@ -21,6 +21,16 @@ export default function UsersPage() {
     const [usersLoading, setUsersLoading] = useState(true);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
+
+    // Filter & Pagination state
+    const [roleFilter, setRoleFilter] = useState<string>('all');
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    // Role filtering & Search
+    const [roleSearchTerm, setRoleSearchTerm] = useState('');
+    const [roleCurrentPage, setRoleCurrentPage] = useState(1);
+    const [roleRowsPerPage, setRoleRowsPerPage] = useState(5);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(5);
 
     // ── Roles state ──────────────────────────────────────────
     const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -100,6 +110,34 @@ export default function UsersPage() {
         return found?.RoleName ?? roleId ?? 'Unknown';
     };
 
+    // ── Filtered & Paginated Users ───────────────────────────
+    const filteredRoles = roles.filter(role =>
+        role.RoleName.toLowerCase().includes(roleSearchTerm.toLowerCase()) ||
+        role.Description.toLowerCase().includes(roleSearchTerm.toLowerCase())
+    );
+
+    const roleTotalPages = Math.max(1, Math.ceil(filteredRoles.length / roleRowsPerPage));
+    useEffect(() => {
+        if (roleCurrentPage > roleTotalPages) setRoleCurrentPage(roleTotalPages);
+    }, [roleTotalPages, roleCurrentPage]);
+
+    const paginatedRoles = filteredRoles.slice((roleCurrentPage - 1) * roleRowsPerPage, roleCurrentPage * roleRowsPerPage);
+
+    const filteredUsers = users.filter((user) => {
+        if (roleFilter !== 'all' && user.RoleID !== roleFilter) return false;
+        return true;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
+    // Ensure current page is valid after filtering or changing rows per page
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage]);
+
+    const paginatedUsers = filteredUsers.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
     const tabs = [
         { key: 'users' as ActiveTab, label: 'Users', icon: <Users className="w-4 h-4" /> },
         { key: 'roles' as ActiveTab, label: 'Roles', icon: <ShieldCheck className="w-4 h-4" /> },
@@ -115,10 +153,10 @@ export default function UsersPage() {
                     <p className="text-gray-500 mt-1">Manage staff accounts, roles, and system access.</p>
                 </div>
 
-                {/* Tabs + Action Button row */}
-                <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+                {/* Tabs row */}
+                <div className="mb-6">
                     {/* Tab Switcher */}
-                    <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-sm gap-1">
+                    <div className="inline-flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-sm gap-1">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.key}
@@ -133,30 +171,75 @@ export default function UsersPage() {
                             </button>
                         ))}
                     </div>
-
-                    {/* Context-aware Add button */}
-                    {activeTab === 'users' ? (
-                        <button
-                            onClick={handleAddUser}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl shadow hover:shadow-md hover:bg-primary/90 transition-all"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add User
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleAddRole}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl shadow hover:shadow-md hover:bg-primary/90 transition-all"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add Role
-                        </button>
-                    )}
                 </div>
 
                 {/* ── USERS TAB ────────────────────────────────────────── */}
                 {activeTab === 'users' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                        {/* Toolbar: Filter */}
+                        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
+                            <div className="relative w-full sm:w-auto">
+                                <button
+                                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                                    className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none w-full sm:w-auto justify-between"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Filter className="w-4 h-4" />
+                                        Role: {roleFilter === 'all' ? 'All' : getRoleName(roleFilter)}
+                                    </div>
+                                </button>
+
+                                {isFilterOpen && (
+                                    <div className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                                        <div className="p-2 border-b border-gray-100">
+                                            <div className="relative">
+                                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search roles..."
+                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                                                    value={roleSearchTerm}
+                                                    onChange={(e) => setRoleSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <ul className="max-h-60 overflow-y-auto p-1">
+                                            <li>
+                                                <button
+                                                    onClick={() => { setRoleFilter('all'); setIsFilterOpen(false); setCurrentPage(1); }}
+                                                    className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 ${roleFilter === 'all' ? 'bg-primary/5 text-primary font-medium' : 'text-gray-700'}`}
+                                                >
+                                                    All Roles
+                                                </button>
+                                            </li>
+                                            {filteredRoles.map(role => (
+                                                <li key={role.RoleID}>
+                                                    <button
+                                                        onClick={() => { setRoleFilter(role.RoleID); setIsFilterOpen(false); setCurrentPage(1); }}
+                                                        className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 ${roleFilter === role.RoleID ? 'bg-primary/5 text-primary font-medium' : 'text-gray-700'}`}
+                                                    >
+                                                        {role.RoleName}
+                                                    </button>
+                                                </li>
+                                            ))}
+                                            {filteredRoles.length === 0 && (
+                                                <li className="px-3 py-2 text-sm text-gray-500 text-center">No roles found</li>
+                                            )}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={handleAddUser}
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                >
+                                    <Plus className="w-4 h-4" /> Add User
+                                </button>
+                            </div>
+                        </div>
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead className="bg-gray-50/80">
@@ -175,14 +258,14 @@ export default function UsersPage() {
                                                 Loading users...
                                             </td>
                                         </tr>
-                                    ) : users.length === 0 ? (
+                                    ) : paginatedUsers.length === 0 ? (
                                         <tr>
                                             <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                                                No users found. Click "Add User" to get started.
+                                                {users.length === 0 ? 'No users found. Click "Add User" to get started.' : 'No users match the selected filters.'}
                                             </td>
                                         </tr>
                                     ) : (
-                                        users.map((user) => (
+                                        paginatedUsers.map((user) => (
                                             <tr key={user.UserID} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-3">
@@ -234,12 +317,82 @@ export default function UsersPage() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination footer */}
+                        <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
+                            <div className="flex flex-col sm:flex-row items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-500">Show</span>
+                                    <select
+                                        value={rowsPerPage}
+                                        onChange={(e) => {
+                                            setRowsPerPage(Number(e.target.value));
+                                            setCurrentPage(1);
+                                        }}
+                                        className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                    </select>
+                                    <span className="text-sm text-gray-500">entries</span>
+                                </div>
+                                <span className="text-gray-500 text-center sm:text-left">
+                                    Showing {usersLoading || filteredUsers.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
+                                    {roleFilter !== 'all' && ` (filtered from ${users.length} total)`}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1 || usersLoading || filteredUsers.length === 0}
+                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="px-3 py-1 font-medium text-gray-700">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages || usersLoading || filteredUsers.length === 0}
+                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {/* ── ROLES TAB ────────────────────────────────────────── */}
                 {activeTab === 'roles' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
+                            <div className="relative w-full sm:max-w-md">
+                                <input
+                                    type="search"
+                                    placeholder="Search roles..."
+                                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
+                                    value={roleSearchTerm}
+                                    onChange={(e) => setRoleSearchTerm(e.target.value)}
+                                />
+                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <Search className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={handleAddRole}
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                >
+                                    <Plus className="w-4 h-4" /> Add Role
+                                </button>
+                            </div>
+                        </div>
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead className="bg-gray-50/80">
@@ -257,14 +410,14 @@ export default function UsersPage() {
                                                 Loading roles...
                                             </td>
                                         </tr>
-                                    ) : roles.length === 0 ? (
+                                    ) : paginatedRoles.length === 0 ? (
                                         <tr>
                                             <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                                No roles found. Click "Add Role" to get started.
+                                                No roles found.
                                             </td>
                                         </tr>
                                     ) : (
-                                        roles.map((role) => (
+                                        paginatedRoles.map((role) => (
                                             <tr key={role.RoleID} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
@@ -310,6 +463,52 @@ export default function UsersPage() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination footer */}
+                        <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
+                            <div className="flex flex-col sm:flex-row items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-500">Show</span>
+                                    <select
+                                        value={roleRowsPerPage}
+                                        onChange={(e) => {
+                                            setRoleRowsPerPage(Number(e.target.value));
+                                            setRoleCurrentPage(1);
+                                        }}
+                                        className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                    </select>
+                                    <span className="text-sm text-gray-500">entries</span>
+                                </div>
+                                <span className="text-gray-500 text-center sm:text-left">
+                                    Showing {rolesLoading || filteredRoles.length === 0 ? 0 : (roleCurrentPage - 1) * roleRowsPerPage + 1} to {Math.min(roleCurrentPage * roleRowsPerPage, filteredRoles.length)} of {filteredRoles.length} entries
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setRoleCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={roleCurrentPage === 1 || rolesLoading || filteredRoles.length === 0}
+                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="px-3 py-1 font-medium text-gray-700">
+                                    Page {roleCurrentPage} of {roleTotalPages}
+                                </span>
+                                <button
+                                    onClick={() => setRoleCurrentPage(p => Math.min(roleTotalPages, p + 1))}
+                                    disabled={roleCurrentPage === roleTotalPages || rolesLoading || filteredRoles.length === 0}
+                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -327,6 +526,6 @@ export default function UsersPage() {
                 role={selectedRole}
                 onSave={loadRoles}
             />
-        </SidebarLayout>
+        </SidebarLayout >
     );
 }

@@ -5,7 +5,7 @@ import { QuotationRecord, getQuotations, computeTotalQuantity } from '@/lib/fire
 import HistoryFilter from '@/components/history/HistoryFilter';
 import HistoryTable from '@/components/history/HistoryTable';
 import SidebarLayout from '@/components/layout/SidebarLayout';
-import { History, FileText, Package, TrendingUp, Users } from 'lucide-react';
+import { History, FileText, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 
 export default function HistoryPage() {
     const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
@@ -71,16 +71,16 @@ export default function HistoryPage() {
     }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, minQuantity]);
 
     // Computed stats
-    const totalQuantity = useMemo(
-        () => filteredData.reduce((sum, q) => sum + computeTotalQuantity(q.Items ?? []), 0),
+    const completeQuotations = useMemo(
+        () => filteredData.filter((q) => q.Status === 'Completed').length,
         [filteredData]
     );
-    const totalRevenue = useMemo(
-        () => filteredData.reduce((sum, q) => sum + (q.Total ?? 0), 0),
+    const incompleteQuotations = useMemo(
+        () => filteredData.filter((q) => q.Status === 'Incomplete').length,
         [filteredData]
     );
-    const uniqueClients = useMemo(
-        () => new Set(filteredData.map((q) => q.CustomerName)).size,
+    const waitingQuotations = useMemo(
+        () => filteredData.filter((q) => q.Status === 'Waiting for Approval').length,
         [filteredData]
     );
 
@@ -93,25 +93,25 @@ export default function HistoryPage() {
             format: (v: number) => v.toString(),
         },
         {
-            label: 'Total Quantity',
-            value: totalQuantity,
-            icon: <Package className="w-5 h-5" />,
-            color: 'bg-primary/10 text-primary',
-            format: (v: number) => v.toString(),
-        },
-        {
-            label: 'Unique Clients',
-            value: uniqueClients,
-            icon: <Users className="w-5 h-5" />,
-            color: 'bg-purple-50 text-purple-600',
-            format: (v: number) => v.toString(),
-        },
-        {
-            label: 'Total Revenue',
-            value: totalRevenue,
-            icon: <TrendingUp className="w-5 h-5" />,
+            label: 'Complete Quotations',
+            value: completeQuotations,
+            icon: <CheckCircle className="w-5 h-5" />,
             color: 'bg-green-50 text-green-600',
-            format: (v: number) => `₱${v.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+            format: (v: number) => v.toString(),
+        },
+        {
+            label: 'Incomplete Quotations',
+            value: incompleteQuotations,
+            icon: <AlertCircle className="w-5 h-5" />,
+            color: 'bg-rose-50 text-rose-600',
+            format: (v: number) => v.toString(),
+        },
+        {
+            label: 'Waiting for Approval',
+            value: waitingQuotations,
+            icon: <Clock className="w-5 h-5" />,
+            color: 'bg-amber-50 text-amber-600',
+            format: (v: number) => v.toString(),
         },
     ];
 
