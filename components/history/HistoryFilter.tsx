@@ -13,6 +13,7 @@ interface HistoryFilterProps {
     onDateToChange: (val: string) => void;
     minQuantity: string;
     onMinQuantityChange: (val: string) => void;
+    availableStatuses?: string[];
 }
 
 export default function HistoryFilter({
@@ -21,6 +22,7 @@ export default function HistoryFilter({
     dateFrom, onDateFromChange,
     dateTo, onDateToChange,
     minQuantity, onMinQuantityChange,
+    availableStatuses = [],
 }: HistoryFilterProps) {
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-3">
@@ -48,9 +50,15 @@ export default function HistoryFilter({
                         onChange={(e) => onStatusChange(e.target.value)}
                     >
                         <option value="all">All Statuses</option>
-                        <option value="Incomplete">Incomplete</option>
-                        <option value="Waiting for Approval">Waiting for Approval</option>
-                        <option value="Completed">Completed</option>
+                        {availableStatuses.length > 0 ? (
+                            availableStatuses.map(s => <option key={s} value={s}>{s}</option>)
+                        ) : (
+                            <>
+                                <option value="Incomplete">Incomplete</option>
+                                <option value="Waiting for Approval">Waiting for Approval</option>
+                                <option value="Completed">Completed</option>
+                            </>
+                        )}
                     </select>
                 </div>
             </div>

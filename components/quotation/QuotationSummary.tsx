@@ -2,20 +2,40 @@
 
 import { useRef, useState } from 'react';
 import { Download, Edit3, Loader2, FileText } from 'lucide-react';
+import { useConfirm } from '@/context/ConfirmContext';
 import PdfGeneratorRenderer from '../history/PdfGeneratorRenderer';
 
-export default function QuotationSummary({ customer, items, onBack, preparedBy }: { customer: any; items: any[]; onBack: () => void; preparedBy?: string }) {
+export default function QuotationSummary({
+    customer, items, onBack, preparedBy, isEditing, editId
+}: { customer: any; items: any[]; onBack: () => void; preparedBy?: string; isEditing?: boolean; editId?: string }) {
     const pdfRef = useRef<HTMLDivElement>(null);
+    const { alert } = useConfirm();
     const [generating, setGenerating] = useState(false);
     const [notes, setNotes] = useState('');
 
     const grandTotal = items.reduce((sum, i) => sum + i.subtotal, 0);
 
+    const totalQuantity = items.reduce((sum, i) => sum + (Number(i.sessions) || 1), 0);
+    const sessionType = (totalQuantity > 1 ? 'Per-session' : 'One-time') as 'Per-session' | 'One-time';
+    const finalStatus = sessionType === 'One-time' ? 'Completed' : 'Incomplete';
+
     // Prepare standard record format for the renderer
     const recordFormat = {
-        CustomerName: customer.name || 'Unknown',
+        DocumentNo: customer.quotationNo || '',
+        GuarantorId: customer.guarantorId || null,
+        GuarantorName: customer.guarantorName || null,
+        SessionType: sessionType,
+        PaymentStatus: 'Unpaid' as const,
+        CustomerFirstName: customer.firstName || '',
+        CustomerMiddleName: customer.middleName || '',
+        CustomerLastName: customer.lastName || '',
+        CustomerName: [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' '),
+        CustomerDob: customer.dob || '',
+        CustomerGender: customer.gender || '',
         CustomerEmail: customer.email || '',
         CustomerPhone: customer.phone || '',
+        CustomerAddress: customer.address || '',
+        CustomerNotes: customer.notes || '',
         HospitalName: 'VisayasMed Hospital',
         PreparedBy: preparedBy || '',
         Items: items.map((i) => ({
@@ -29,7 +49,7 @@ export default function QuotationSummary({ customer, items, onBack, preparedBy }
         Subtotal: grandTotal,
         Vat: 0,
         Total: grandTotal,
-        Status: 'Incomplete' as const,
+        Status: finalStatus,
     };
 
     const handleDownload = async () => {
@@ -77,24 +97,37 @@ export default function QuotationSummary({ customer, items, onBack, preparedBy }
             }
 
             let pdfFilename = `VisayasMed-Quotation-${customer.quotationNo}.pdf`;
-            if (customer.name) {
-                const nameParts = customer.name.trim().split(' ');
-                const lastName = nameParts.length > 1 ? nameParts.pop() : '';
-                const firstName = nameParts.join('_');
-                pdfFilename = `${lastName}_${firstName}_Quotation.pdf`.replace(/^_|_$/g, '');
+            if (customer.lastName && customer.firstName) {
+                pdfFilename = `${customer.lastName}_${customer.firstName}_Quotation.pdf`.replace(/\s+/g, '_');
             }
 
             pdf.save(pdfFilename);
 
             try {
-                const { addQuotation } = await import('@/lib/firestore/quotations');
-                await addQuotation(recordFormat);
+                if (isEditing && editId) {
+                    const { updateQuotation } = await import('@/lib/firestore/quotations');
+                    const { createAuditLog } = await import('@/lib/firestore/audit');
+                    await updateQuotation(editId, recordFormat);
+                    await createAuditLog({
+                        Action: 'Edited Quotation',
+                        Module: 'Quotation',
+                        RecordID: editId,
+                        Description: `Updated Quotation Document No: ${recordFormat.DocumentNo || editId}`
+                    });
+                } else {
+                    const { addQuotation } = await import('@/lib/firestore/quotations');
+                    await addQuotation(recordFormat);
+                }
             } catch (dbErr) {
                 console.error('Quiet fail on DB save for quotation:', dbErr);
             }
         } catch (err) {
             console.error('PDF generation error:', err);
-            alert('PDF generation failed. Please try again.');
+            await alert({
+                title: 'PDF Generation Failed',
+                message: 'An error occurred while building the PDF instance. Please try again.',
+                variant: 'danger'
+            });
         }
         setGenerating(false);
     };

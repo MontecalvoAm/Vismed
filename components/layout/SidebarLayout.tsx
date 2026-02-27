@@ -15,6 +15,7 @@ import {
     Menu,
     X,
     LogOut,
+    Shield,
 } from 'lucide-react';
 
 interface SidebarLayoutProps {
@@ -32,6 +33,7 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
         { href: '/quotation', label: 'Quotation', icon: <LayoutDashboard className="w-4 h-4" /> },
         { href: '/history', label: 'Records', icon: <ClipboardList className="w-4 h-4" /> },
         ...(user?.Permissions?.Departments?.CanView ? [{ href: '/departments', label: 'Departments', icon: <Building2 className="w-4 h-4" /> }] : []),
+        ...(user?.Permissions?.Departments?.CanView ? [{ href: '/guarantors', label: 'Guarantors', icon: <Shield className="w-4 h-4" /> }] : []),
         ...(user?.Permissions?.Services?.CanView ? [{ href: '/services', label: 'Items and Services', icon: <Stethoscope className="w-4 h-4" /> }] : []),
         ...(user?.Permissions?.Users?.CanView ? [{ href: '/users', label: 'Users', icon: <Users className="w-4 h-4" /> }] : []),
     ];

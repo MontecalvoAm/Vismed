@@ -1,6 +1,8 @@
 'use client';
 
-import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight, Shield, Layers } from 'lucide-react';
+import { getGuarantors, GuarantorRecord } from '@/lib/firestore/guarantors';
 
 interface CustomerInfoFormProps {
     data: any;
@@ -9,8 +11,24 @@ interface CustomerInfoFormProps {
 }
 
 export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInfoFormProps) {
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-        onChange({ ...data, [e.target.name]: e.target.value });
+    const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
+    const [guarantorSearch, setGuarantorSearch] = useState('');
+    const [isGuarantorOpen, setIsGuarantorOpen] = useState(false);
+
+    useEffect(() => {
+        getGuarantors().then(setGuarantors).catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        if (data.guarantorName && !guarantorSearch) {
+            setGuarantorSearch(data.guarantorName);
+        }
+    }, [data.guarantorName]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        let updates = { [e.target.name]: e.target.value };
+        onChange({ ...data, ...updates });
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -26,16 +44,40 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
         <form className="space-y-8" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
 
-                {/* 1. Name */}
-                <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">
-                        Patient / Customer Name <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                            <UserSquare2 className="h-4 w-4" />
+                {/* 1. Name Split fields */}
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700">
+                            First Name <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                                <UserSquare2 className="h-4 w-4" />
+                            </div>
+                            <input type="text" name="firstName" className={inputClasses} placeholder="First name" value={data.firstName || ''} onChange={handleChange} required />
                         </div>
-                        <input type="text" name="name" className={inputClasses} placeholder="Full legal name" value={data.name || ''} onChange={handleChange} required />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700">
+                            Middle Name <span className="text-slate-400 font-normal">(optional)</span>
+                        </label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                                <UserSquare2 className="h-4 w-4" />
+                            </div>
+                            <input type="text" name="middleName" className={inputClasses} placeholder="Middle name" value={data.middleName || ''} onChange={handleChange} />
+                        </div>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700">
+                            Last Name <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                                <UserSquare2 className="h-4 w-4" />
+                            </div>
+                            <input type="text" name="lastName" className={inputClasses} placeholder="Last name" value={data.lastName || ''} onChange={handleChange} required />
+                        </div>
                     </div>
                 </div>
 
@@ -71,27 +113,83 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
                     </div>
                 </div>
 
-                {/* 4. Contact */}
-                <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">
-                        Contact Number <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                            <Phone className="h-4 w-4" />
+                {/* 4. Company, Contact, Email Split fields */}
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Guarantor */}
+                    <div className="space-y-1.5 relative">
+                        <label className="text-sm font-medium text-slate-700">Guarantor Company <span className="text-slate-400 font-normal">(optional)</span></label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                                <Shield className="h-4 w-4" />
+                            </div>
+                            <input
+                                type="text"
+                                className={inputClasses}
+                                placeholder="Search & select guarantor..."
+                                value={guarantorSearch}
+                                onChange={(e) => {
+                                    setGuarantorSearch(e.target.value);
+                                    setIsGuarantorOpen(true);
+                                    if (!e.target.value) {
+                                        onChange({ ...data, guarantorId: '', guarantorName: '' });
+                                    }
+                                }}
+                                onFocus={() => setIsGuarantorOpen(true)}
+                                onBlur={() => setTimeout(() => setIsGuarantorOpen(false), 200)}
+                            />
+                            {/* Dropdown list */}
+                            {isGuarantorOpen && (
+                                <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg ring-1 ring-black/5">
+                                    <li
+                                        className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer font-medium"
+                                        onClick={() => {
+                                            setGuarantorSearch('');
+                                            onChange({ ...data, guarantorId: '', guarantorName: '' });
+                                            setIsGuarantorOpen(false);
+                                        }}
+                                    >
+                                        None (Self-pay)
+                                    </li>
+                                    {guarantors.filter(g => g.Name.toLowerCase().includes(guarantorSearch.toLowerCase())).map(g => (
+                                        <li
+                                            key={g.id}
+                                            className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary cursor-pointer border-t border-slate-100 transition-colors"
+                                            onClick={() => {
+                                                setGuarantorSearch(g.Name);
+                                                onChange({ ...data, guarantorId: g.id, guarantorName: g.Name });
+                                                setIsGuarantorOpen(false);
+                                            }}
+                                        >
+                                            {g.Name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
-                        <input type="tel" name="phone" className={inputClasses} placeholder="+63 9XX XXX XXXX" value={data.phone || ''} onChange={handleChange} required />
                     </div>
-                </div>
 
-                {/* 5. Email */}
-                <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Email Address</label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                            <Mail className="h-4 w-4" />
+                    {/* Contact Number */}
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700">
+                            Contact Number <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                                <Phone className="h-4 w-4" />
+                            </div>
+                            <input type="tel" name="phone" className={inputClasses} placeholder="+63 9XX XXX XXXX" value={data.phone || ''} onChange={handleChange} required />
                         </div>
-                        <input type="email" name="email" className={inputClasses} placeholder="patient@email.com" value={data.email || ''} onChange={handleChange} />
+                    </div>
+
+                    {/* Email */}
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700">Email Address</label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                                <Mail className="h-4 w-4" />
+                            </div>
+                            <input type="email" name="email" className={inputClasses} placeholder="patient@email.com" value={data.email || ''} onChange={handleChange} />
+                        </div>
                     </div>
                 </div>
 

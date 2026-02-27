@@ -5,8 +5,8 @@
 // ============================================================
 
 import {
-    collection, doc, getDoc, getDocs, setDoc, updateDoc,
-    serverTimestamp, query, orderBy, Timestamp
+    collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
+    serverTimestamp, query, orderBy, where, Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -24,16 +24,28 @@ export interface QuotationItem {
 
 export interface QuotationRecord {
     id?: string;          // Firestore document ID (runtime only)
-    CustomerName: string;
+    DocumentNo?: string;
+    CustomerName?: string; // Legacy support (do not remove)
+    CustomerFirstName: string;
+    CustomerMiddleName?: string;
+    CustomerLastName: string;
+    CustomerDob?: string;
+    CustomerGender?: string;
     CustomerEmail: string;
     CustomerPhone: string;
+    CustomerAddress?: string;
+    CustomerNotes?: string;
     HospitalName?: string;
     PreparedBy?: string;
+    GuarantorId?: string | null;
+    GuarantorName?: string | null;
+    SessionType?: 'One-time' | 'Per-session';
+    PaymentStatus?: 'Paid' | 'Unpaid' | 'None';
     Items: QuotationItem[];
     Subtotal: number;
     Vat: number;
     Total: number;
-    Status: 'Incomplete' | 'Waiting for Approval' | 'Completed';
+    Status: string; // Dynamic status; typical defaults: 'Incomplete', 'Completed', 'Waiting for Approval'
     CreatedAt?: any;
     UpdatedAt?: any;
 }
@@ -82,6 +94,23 @@ export async function getQuotations(): Promise<QuotationRecord[]> {
     });
 }
 
+export async function getQuotationsByGuarantor(guarantorId: string): Promise<QuotationRecord[]> {
+    const q = query(collection(db, COL), where('GuarantorId', '==', guarantorId), orderBy('CreatedAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+        const data = d.data();
+        let formattedDate: string | null = null;
+        if (data.CreatedAt instanceof Timestamp) {
+            formattedDate = data.CreatedAt.toDate().toISOString();
+        }
+        return {
+            id: d.id,
+            ...data,
+            CreatedAt: formattedDate,
+        } as QuotationRecord;
+    });
+}
+
 export async function getQuotationById(id: string): Promise<QuotationRecord | null> {
     const snap = await getDoc(doc(db, COL, id));
     if (!snap.exists()) return null;
@@ -103,12 +132,16 @@ export async function updateQuotationStatus(
     });
 }
 
-export async function updateQuotationItems(
+export async function updateQuotation(
     id: string,
-    Items: QuotationItem[],
-    Status?: QuotationRecord['Status']
+    data: Partial<Omit<QuotationRecord, 'id' | 'CreatedAt' | 'UpdatedAt'>>
 ): Promise<void> {
-    const updateData: any = { Items, UpdatedAt: serverTimestamp() };
-    if (Status) updateData.Status = Status;
-    await updateDoc(doc(db, COL, id), updateData);
+    await updateDoc(doc(db, COL, id), {
+        ...data,
+        UpdatedAt: serverTimestamp(),
+    });
+}
+
+export async function deleteQuotation(id: string): Promise<void> {
+    await deleteDoc(doc(db, COL, id));
 }

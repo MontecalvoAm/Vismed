@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getAllUsers, type UserRecord } from '@/lib/firestore/users';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import AccessDenied from '@/components/AccessDenied';
 import UserModal from '@/components/users/UserModal';
 import RoleModal, { type RoleRecord } from '@/components/users/RoleModal';
@@ -21,6 +22,7 @@ type ActiveTab = 'users' | 'roles';
 
 export default function UserManager() {
     const { user } = useAuth();
+    const { confirm, alert } = useConfirm();
     const perms = user?.Permissions?.Users;
 
     const [activeTab, setActiveTab] = useState<ActiveTab>('users');
@@ -73,13 +75,24 @@ export default function UserManager() {
     const handleAddUser = () => { setSelectedUser(null); setIsUserModalOpen(true); };
     const handleEditUser = (u: UserRecord) => { setSelectedUser(u); setIsUserModalOpen(true); };
     const handleDeleteUser = async (u: UserRecord) => {
-        if (!window.confirm(`Delete user ${u.FirstName} ${u.LastName}? This cannot be undone.`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete User',
+            message: `Are you sure you want to delete user ${u.FirstName} ${u.LastName}? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete'
+        });
+        if (!isConfirmed) return;
+
         try {
             const res = await fetch(`/api/users/${u.UserID}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete user');
             loadUsers();
         } catch (err: any) {
-            alert(err.message || 'Failed to delete user');
+            await alert({
+                title: 'Error Deleting User',
+                message: err.message || 'Failed to delete user',
+                variant: 'danger'
+            });
         }
     };
 
@@ -87,14 +100,25 @@ export default function UserManager() {
     const handleAddRole = () => { setSelectedRole(null); setIsRoleModalOpen(true); };
     const handleEditRole = (r: RoleRecord) => { setSelectedRole(r); setIsRoleModalOpen(true); };
     const handleDeleteRole = async (r: RoleRecord) => {
-        if (!window.confirm(`Delete role "${r.RoleName}"? Users assigned this role will need to be updated.`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Role',
+            message: `Delete role "${r.RoleName}"? Users assigned this role will need to be updated.`,
+            variant: 'danger',
+            confirmText: 'Delete Role'
+        });
+        if (!isConfirmed) return;
+
         try {
             const res = await fetch(`/api/roles/${r.RoleID}`, { method: 'DELETE' });
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Failed to delete role');
             loadRoles();
         } catch (err: any) {
-            alert(err.message || 'Failed to delete role');
+            await alert({
+                title: 'Error Deleting Role',
+                message: err.message || 'Failed to delete role',
+                variant: 'danger'
+            });
         }
     };
 
@@ -116,8 +140,8 @@ export default function UserManager() {
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.key
-                                    ? 'bg-brand-muted-blue text-white shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                                ? 'bg-brand-muted-blue text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                                 }`}
                         >
                             {tab.icon}
@@ -197,8 +221,8 @@ export default function UserManager() {
                                             </td>
                                             <td className="px-5 py-3.5 text-center">
                                                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${u.IsActive !== false
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-red-100 text-red-700'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-red-100 text-red-700'
                                                     }`}>
                                                     {u.IsActive !== false
                                                         ? <><CheckCircle className="w-3 h-3" /> Active</>
@@ -279,8 +303,8 @@ export default function UserManager() {
                                             </td>
                                             <td className="px-5 py-3.5 text-center">
                                                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${r.IsActive !== false
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-red-100 text-red-700'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-red-100 text-red-700'
                                                     }`}>
                                                     {r.IsActive !== false
                                                         ? <><CheckCircle className="w-3 h-3" /> Active</>

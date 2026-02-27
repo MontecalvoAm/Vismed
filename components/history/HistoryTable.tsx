@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { QuotationRecord, updateQuotationStatus } from '@/lib/firestore/quotations';
-import { Package, User, Activity, Edit3, FileSearch, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft } from 'lucide-react';
+import { Package, User, Activity, Edit3, FileSearch, Trash2, Pencil, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft } from 'lucide-react';
+import { useConfirm } from '@/context/ConfirmContext';
 import TrackingModal from './TrackingModal';
 import PdfViewerModal from './PdfViewerModal';
 
@@ -10,6 +12,8 @@ interface HistoryTableProps {
     data: QuotationRecord[];
     isLoading: boolean;
     onRefresh?: () => void;
+    onDelete?: (id: string) => Promise<void>;
+    onBulkDelete?: (ids: string[]) => Promise<void>;
 }
 
 const statusStyles: Record<string, string> = {
@@ -18,7 +22,9 @@ const statusStyles: Record<string, string> = {
     'Completed': 'bg-green-100 text-green-700',
 };
 
-export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTableProps) {
+export default function HistoryTable({ data, isLoading, onRefresh, onDelete, onBulkDelete }: HistoryTableProps) {
+    const router = useRouter();
+    const { confirm, alert } = useConfirm();
     const [trackingQuotation, setTrackingQuotation] = useState<QuotationRecord | null>(null);
     const [trackingItemIndex, setTrackingItemIndex] = useState<number | null>(null);
     const [viewingQuotation, setViewingQuotation] = useState<QuotationRecord | null>(null);
@@ -55,7 +61,11 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to update status:', error);
-            alert('Failed to update status');
+            await alert({
+                title: 'Update Failed',
+                message: 'Failed to update status',
+                variant: 'danger'
+            });
         } finally {
             setStatusUpdatingId(null);
         }
@@ -88,6 +98,20 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
         }
     };
 
+    const handleBulkDelete = async () => {
+        if (!onBulkDelete || selectedRows.size === 0) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Selected Records',
+            message: `Are you sure you want to delete ${selectedRows.size} quotation(s)? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete All'
+        });
+        if (isConfirmed) {
+            await onBulkDelete(Array.from(selectedRows));
+            setSelectedRows(new Set());
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-16 text-center">
@@ -109,6 +133,20 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
 
     return (
         <div className="space-y-4">
+            {selectedRows.size > 0 && (
+                <div className="bg-brand-muted-blue/10 border border-brand-muted-blue/20 rounded-xl p-3 flex items-center justify-between mb-2 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                    <span className="text-sm font-semibold text-brand-dark-blue ml-2">
+                        {selectedRows.size} record(s) selected
+                    </span>
+                    <button
+                        onClick={handleBulkDelete}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-500 rounded-lg hover:bg-rose-600 shadow-sm shadow-rose-500/20 transition-all border border-transparent"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Selected
+                    </button>
+                </div>
+            )}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -208,6 +246,31 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
                                                         className="p-1.5 rounded-lg text-rose-500 hover:text-white hover:bg-rose-500 transition-all shadow-sm border border-brand-light-grey/20 bg-white"
                                                     >
                                                         <FileSearch className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); router.push('/history/edit/' + q.id); }}
+                                                        title="Edit Quotation"
+                                                        className="p-1.5 rounded-lg text-primary hover:text-white hover:bg-primary transition-all shadow-sm border border-brand-light-grey/20 bg-white"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            const isConfirmed = await confirm({
+                                                                title: 'Delete Quotation',
+                                                                message: 'Are you sure you want to delete this quotation? This action cannot be undone.',
+                                                                variant: 'danger',
+                                                                confirmText: 'Delete'
+                                                            });
+                                                            if (isConfirmed) {
+                                                                if (onDelete && q.id) onDelete(q.id);
+                                                            }
+                                                        }}
+                                                        title="Delete Quotation"
+                                                        className="p-1.5 rounded-lg text-red-500 hover:text-white hover:bg-red-500 transition-all shadow-sm border border-brand-light-grey/20 bg-white"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             </td>

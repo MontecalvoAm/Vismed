@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
+import { useConfirm } from '@/context/ConfirmContext';
 import { QuotationRecord } from '@/lib/firestore/quotations';
 import PdfGeneratorRenderer from './PdfGeneratorRenderer';
 
@@ -13,6 +14,7 @@ interface PdfViewerModalProps {
 
 export default function PdfViewerModal({ isOpen, onClose, quotation }: PdfViewerModalProps) {
     const pdfRef = useRef<HTMLDivElement>(null);
+    const { alert } = useConfirm();
     const [generating, setGenerating] = useState(false);
 
     if (!isOpen || !quotation) return null;
@@ -74,7 +76,11 @@ export default function PdfViewerModal({ isOpen, onClose, quotation }: PdfViewer
             pdf.save(pdfFilename);
         } catch (err) {
             console.error('PDF generation error:', err);
-            alert('PDF download failed. Please try again.');
+            await alert({
+                title: 'Download Failed',
+                message: 'PDF download failed. Please try again.',
+                variant: 'danger'
+            });
         }
         setGenerating(false);
     };

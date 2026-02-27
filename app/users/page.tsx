@@ -6,6 +6,7 @@ import { Role as RoleRecord, getAllRoles } from '@/lib/firestore/roles';
 import UserModal from '@/components/users/UserModal';
 import RoleModal from '@/components/users/RoleModal';
 import SidebarLayout from '@/components/layout/SidebarLayout';
+import { useConfirm } from '@/context/ConfirmContext';
 import {
     Plus, Edit2, Trash2, Shield, User as UserIcon,
     Users, ShieldCheck, CheckCircle, XCircle, Search, Filter, ChevronLeft, ChevronRight
@@ -14,6 +15,7 @@ import {
 type ActiveTab = 'users' | 'roles';
 
 export default function UsersPage() {
+    const { confirm, alert } = useConfirm();
     const [activeTab, setActiveTab] = useState<ActiveTab>('users');
 
     // ── Users state ──────────────────────────────────────────
@@ -77,14 +79,25 @@ export default function UsersPage() {
     const handleAddUser = () => { setSelectedUser(null); setIsUserModalOpen(true); };
     const handleEditUser = (user: UserRecord) => { setSelectedUser(user); setIsUserModalOpen(true); };
     const handleDeleteUser = async (user: UserRecord) => {
-        if (!window.confirm(`Delete user ${user.FirstName} ${user.LastName}?`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete User',
+            message: `Delete user ${user.FirstName} ${user.LastName}? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete'
+        });
+        if (!isConfirmed) return;
+
         try {
             const res = await fetch(`/api/users/${user.UserID}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete user');
             loadUsers();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to delete user');
+            await alert({
+                title: 'Error Deleting User',
+                message: error.message || 'Failed to delete user',
+                variant: 'danger'
+            });
         }
     };
 
@@ -92,7 +105,14 @@ export default function UsersPage() {
     const handleAddRole = () => { setSelectedRole(null); setIsRoleModalOpen(true); };
     const handleEditRole = (role: RoleRecord) => { setSelectedRole(role); setIsRoleModalOpen(true); };
     const handleDeleteRole = async (role: RoleRecord) => {
-        if (!window.confirm(`Delete role "${role.RoleName}"? Users assigned this role will need to be updated.`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Role',
+            message: `Delete role "${role.RoleName}"? Users assigned this role will need to be updated.`,
+            variant: 'danger',
+            confirmText: 'Delete Role'
+        });
+        if (!isConfirmed) return;
+
         try {
             const res = await fetch(`/api/roles/${role.RoleID}`, { method: 'DELETE' });
             const data = await res.json();
@@ -100,7 +120,11 @@ export default function UsersPage() {
             loadRoles();
         } catch (error: any) {
             console.error(error);
-            alert(error.message || 'Failed to delete role');
+            await alert({
+                title: 'Error Deleting Role',
+                message: error.message || 'Failed to delete role',
+                variant: 'danger'
+            });
         }
     };
 

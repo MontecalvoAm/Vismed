@@ -6,32 +6,12 @@ import ServiceSelector from '@/components/quotation/ServiceSelector';
 import QuotationSummary from '@/components/quotation/QuotationSummary';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircle2, LayoutDashboard } from 'lucide-react';
+import { useConfirm } from '@/context/ConfirmContext';
+import { CheckCircle2, LayoutDashboard, Loader2 } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { getQuotationById } from '@/lib/firestore/quotations';
 
 const STEPS = ['Customer Info', 'Select Services', 'Review & Download'];
-
-function generateQuotationNo() {
-    const now = new Date();
-    const date = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const rand = Math.floor(Math.random() * 900) + 100;
-    return `VMQ-${date}-${rand}`;
-}
-
-function getTodayFormatted() {
-    return new Date().toLocaleDateString('en-PH', {
-        year: 'numeric', month: 'long', day: 'numeric',
-    });
-}
-
-const initialCustomer = {
-    name: '', dob: '', gender: '', phone: '', email: '',
-    address: '', notes: '', preparedBy: '',
-    quotationNo: generateQuotationNo(),
-    date: getTodayFormatted(),
-    guarantorId: '',
-    guarantorName: '',
-    sessionType: 'Per-session'
-};
 
 type ItemType = {
     id: string;
@@ -45,41 +25,96 @@ type ItemType = {
     subtotal: number;
 }
 
-export default function QuotationPage() {
+export default function EditQuotationPage() {
     const { user } = useAuth();
+    const { alert } = useConfirm();
+    const params = useParams();
+    const router = useRouter();
+    const id = params.id as string;
+
+    const [loading, setLoading] = useState(true);
     const [step, setStep] = useState(0);
-    const [customer, setCustomer] = useState(initialCustomer);
+    const [customer, setCustomer] = useState<any>(null);
     const [items, setItems] = useState<ItemType[]>([]);
 
     useEffect(() => {
-        if (user) {
-            setCustomer((prev) => ({
-                ...prev,
-                preparedBy: `${user.FirstName} ${user.LastName}`.trim(),
-            }));
-        }
-    }, [user]);
+        if (!id) return;
+        getQuotationById(id).then(record => {
+            if (!record) {
+                alert({
+                    title: 'Not Found',
+                    message: 'Quotation not found.',
+                    variant: 'warning'
+                }).then(() => router.push('/history'));
+                return;
+            }
+            setCustomer({
+                firstName: record.CustomerFirstName || record.CustomerName?.split(' ')[0] || '',
+                middleName: record.CustomerMiddleName || '',
+                lastName: record.CustomerLastName || (record.CustomerName?.split(' ').slice(1).join(' ')) || '',
+                dob: record.CustomerDob || '',
+                gender: record.CustomerGender || '',
+                phone: record.CustomerPhone || '',
+                email: record.CustomerEmail || '',
+                address: record.CustomerAddress || '',
+                notes: record.CustomerNotes || '',
+                preparedBy: record.PreparedBy || '',
+                quotationNo: record.DocumentNo || record.id,
+                date: record.CreatedAt ? new Date(record.CreatedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
+                guarantorId: record.GuarantorId || '',
+                guarantorName: record.GuarantorName || '',
+                sessionType: record.SessionType || 'Per-session',
+            });
+            setItems(record.Items.map(i => ({
+                id: i.Id || Math.random().toString(),
+                deptId: '', // Unknown if not saved before, UI might glitch without it, so we mock it
+                deptName: i.Department || '',
+                serviceId: '',
+                serviceName: i.Name || '',
+                unitPrice: i.Price || 0,
+                unit: i.Unit || '',
+                sessions: i.Quantity || 0,
+                subtotal: (i.Price || 0) * (i.Quantity || 0)
+            })));
+            setLoading(false);
+        }).catch(err => {
+            console.error(err);
+            setLoading(false);
+        });
+    }, [id, router]);
 
     const goNext = () => setStep((s) => Math.min(s + 1, 2));
     const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
+    if (loading) {
+        return (
+            <SidebarLayout pageTitle="Edit Quotation">
+                <div className="flex items-center justify-center p-20 text-slate-500">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                </div>
+            </SidebarLayout>
+        );
+    }
+
+    if (!customer) return null;
+
     return (
-        <SidebarLayout pageTitle="New Quotation">
+        <SidebarLayout pageTitle="Edit Quotation">
             <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto w-full">
                 {/* Active Quotation Information Box */}
                 <div className="mb-8 bg-white/90 backdrop-blur-sm rounded-xl p-5 shadow-sm border border-brand-muted-blue/20 ring-1 ring-slate-900/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-brand-lime-green/10 flex items-center justify-center border border-brand-lime-green/20">
-                            <LayoutDashboard className="w-5 h-5 text-brand-lime-green" />
+                        <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                            <LayoutDashboard className="w-5 h-5 text-amber-600" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-brand-dark-blue">Active Quotation Draft</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Complete the steps below to finalize the document.</p>
+                            <h3 className="text-sm font-bold text-gray-900">Editing Quotation</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">Modifying an existing document. A history log will be saved.</p>
                         </div>
                     </div>
                     <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 flex items-center shadow-inner">
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-3">Document No:</span>
-                        <span className="text-base font-mono font-bold text-brand-lime-green tracking-tight">{customer.quotationNo}</span>
+                        <span className="text-base font-mono font-bold text-gray-900 tracking-tight">{customer.quotationNo}</span>
                     </div>
                 </div>
 
@@ -134,9 +169,9 @@ export default function QuotationPage() {
                                 </div>
                                 <h2 className="text-xl font-bold text-brand-dark-blue">{STEPS[step]}</h2>
                                 <p className="text-sm text-slate-500 mt-1">
-                                    {step === 0 && 'Enter the patient or customer details below. Fields marked * are required.'}
-                                    {step === 1 && 'Search for a department and service, set the number of sessions, then click Add.'}
-                                    {step === 2 && 'Review the complete quotation below, then download it as a PDF.'}
+                                    {step === 0 && 'Update patient or customer details.'}
+                                    {step === 1 && 'Modify the selected services.'}
+                                    {step === 2 && 'Review and save changes to generate the updated PDF.'}
                                 </p>
                             </div>
                         </div>
@@ -144,7 +179,7 @@ export default function QuotationPage() {
                     <div className="p-6 sm:p-8">
                         {step === 0 && <CustomerInfoForm data={customer} onChange={setCustomer} onNext={goNext} />}
                         {step === 1 && <ServiceSelector items={items} onChange={setItems} onNext={goNext} onBack={goBack} />}
-                        {step === 2 && <QuotationSummary customer={customer} items={items} onBack={goBack} preparedBy={customer.preparedBy} />}
+                        {step === 2 && <QuotationSummary customer={customer} items={items} onBack={goBack} preparedBy={customer.preparedBy} isEditing={true} editId={id} />}
                     </div>
                 </div>
             </div>

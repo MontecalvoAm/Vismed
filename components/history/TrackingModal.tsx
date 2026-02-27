@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { QuotationRecord, updateQuotationItems, QuotationItem } from '@/lib/firestore/quotations';
+import { QuotationRecord, updateQuotation, QuotationItem } from '@/lib/firestore/quotations';
 import { createAuditLog } from '@/lib/firestore/audit';
+import { useConfirm } from '@/context/ConfirmContext';
 import { X, Save, Clock, Package, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
 
 interface TrackingModalProps {
@@ -14,6 +15,7 @@ interface TrackingModalProps {
 }
 
 export default function TrackingModal({ isOpen, onClose, quotation, initialItemIndex, onSaveSuccess }: TrackingModalProps) {
+    const { alert } = useConfirm();
     const [items, setItems] = useState<QuotationItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -76,11 +78,12 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                 }
             }
 
-            await updateQuotationItems(
-                quotation.id,
-                items,
-                updatedStatus !== quotation.Status ? updatedStatus : undefined
-            );
+            const updatePayload: any = { Items: items };
+            if (updatedStatus !== quotation.Status) {
+                updatePayload.Status = updatedStatus;
+            }
+
+            await updateQuotation(quotation.id, updatePayload);
 
             // Calculate exact audit payload
             const changes = items.filter((item, i) => item.Used !== quotation.Items[i].Used)
@@ -100,7 +103,11 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
             onClose();
         } catch (error) {
             console.error('Failed to update tracking:', error);
-            alert('Failed to save tracking progress.');
+            await alert({
+                title: 'Save Failed',
+                message: 'Failed to save tracking progress.',
+                variant: 'danger'
+            });
         } finally {
             setIsSaving(false);
         }
