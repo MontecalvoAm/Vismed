@@ -64,22 +64,23 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
 
             {/* Sidebar Navigation */}
             <aside className={`
-                fixed md:sticky top-0 left-0 z-50 h-[100dvh] w-64 bg-brand-dark-blue text-white shadow-xl transition-transform duration-300 ease-in-out
+                fixed md:sticky top-0 left-0 z-50 h-[100dvh] w-64 bg-[#234b8c] text-white shadow-xl transition-transform duration-300 ease-in-out
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-                flex flex-col
+                flex flex-col relative
             `}>
+                {/* Subtle overlay to soften the blue without losing it */}
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none" />
+
                 {/* Sidebar Header */}
-                <div className="flex items-center justify-between h-16 md:h-20 px-6 border-b border-brand-light-grey/20 shrink-0">
+                <div className="flex items-center justify-between h-16 md:h-20 px-6 border-b border-white/10 shrink-0 relative z-10">
                     <Link href="/quotation" className="flex items-center gap-3">
-                        <div className="bg-white p-1 rounded-lg">
-                            <Image src="/VisayasMedical.png" alt="Logo" width={28} height={28} className="object-contain" />
-                        </div>
+                        <Image src="/VisayasMedical.png" alt="Logo" width={40} height={40} className="object-contain" priority />
                         <span className="font-bold text-lg tracking-tight leading-tight">
-                            VisayasMed<br /><span className="text-brand-light-grey text-sm font-medium">Hospital</span>
+                            VisayasMed<br /><span className="text-blue-100/80 text-sm font-medium">Hospital</span>
                         </span>
                     </Link>
                     <button
-                        className="md:hidden p-1.5 text-brand-light-grey hover:text-white rounded-md hover:bg-white/10"
+                        className="md:hidden p-1.5 text-blue-200 hover:text-white rounded-md hover:bg-white/10"
                         onClick={() => setIsSidebarOpen(false)}
                     >
                         <X className="w-5 h-5" />
@@ -87,8 +88,8 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                 </div>
 
                 {/* Sidebar Main Links */}
-                <div className="flex-1 py-6 px-4 overflow-y-auto">
-                    <div className="text-xs font-semibold text-brand-muted-blue tracking-wider mb-3 px-2 uppercase">Menu</div>
+                <div className="flex-1 py-6 px-4 overflow-y-auto relative z-10">
+                    <div className="text-xs font-semibold text-blue-200/60 tracking-wider mb-3 px-2 uppercase">Menu</div>
                     <nav className="space-y-1.5">
                         {navTabs.map(tab => {
                             const active = pathname === tab.href || pathname.startsWith(tab.href + '/');
@@ -98,11 +99,11 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                                     href={tab.href}
                                     onClick={() => setIsSidebarOpen(false)}
                                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${active
-                                        ? 'bg-brand-muted-blue text-white shadow-md'
-                                        : 'text-brand-light-grey hover:text-white hover:bg-white/5'
+                                        ? 'bg-white/15 text-white shadow-md border border-white/5'
+                                        : 'text-blue-100/70 hover:text-white hover:bg-white/5'
                                         }`}
                                 >
-                                    <div className={`${active ? 'text-white' : 'text-brand-light-grey group-hover:text-white'}`}>
+                                    <div className={`${active ? 'text-white' : 'text-blue-200/50 group-hover:text-white transition-colors'}`}>
                                         {tab.icon}
                                     </div>
                                     {tab.label}
@@ -113,10 +114,10 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                 </div>
 
                 {/* Sidebar Footer (User Info) */}
-                <div className="p-4 border-t border-brand-light-grey/20 bg-black/10 shrink-0">
+                <div className="p-4 border-t border-white/10 bg-black/10 shrink-0 relative z-10">
                     {user && (
                         <div className="flex items-center gap-3 px-2">
-                            <div className="w-9 h-9 rounded-full bg-brand-muted-blue flex items-center justify-center text-sm font-bold shadow-sm ring-2 ring-white/10 shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center text-sm font-bold shadow-sm ring-2 ring-white/10 shrink-0 border border-white/5">
                                 {user.FirstName[0]}{user.LastName[0]}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -141,7 +142,7 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                         >
                             <Menu className="w-6 h-6" />
                         </button>
-                        <Image src="/VisayasMedical.png" alt="Logo" width={28} height={28} className="object-contain" />
+                        <Image src="/VisayasMedical.png" alt="Logo" width={32} height={32} className="object-contain" priority />
                         <span className="font-bold text-lg tracking-tight text-slate-800">
                             VisayasMed
                         </span>

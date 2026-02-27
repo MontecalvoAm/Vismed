@@ -8,21 +8,21 @@ export const metadata = {
 
 export default function LoginPage() {
     return (
-        <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-neutral-900">
+        <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-slate-900">
             {/* Background Image Overlay */}
             <div className="absolute inset-0 z-0">
                 <Image
                     src="/Background.png"
                     alt="VisayasMed Background"
                     fill
-                    className="object-cover opacity-30 mix-blend-overlay"
+                    className="object-cover opacity-60"
                     quality={100}
                     priority
                 />
-                <div className="absolute inset-0 bg-gradient-to-b from-neutral-900/60 to-neutral-950/90" />
+                <div className="absolute inset-0 bg-gradient-to-b from-slate-900/30 via-slate-900/60 to-slate-950/90" />
             </div>
 
-            <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-neutral-900/40 backdrop-blur-xl border border-neutral-800 rounded-3xl shadow-2xl flex flex-col items-center">
+            <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-neutral-900/60 backdrop-blur-xl border border-neutral-800 rounded-3xl shadow-2xl flex flex-col items-center">
                 {/* Logo */}
                 <div className="mb-8 flex flex-col items-center justify-center">
                     <Image
