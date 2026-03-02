@@ -12,6 +12,8 @@ import * as admin from 'firebase-admin';
 
 const COL = 'M_Role';
 
+export const dynamic = 'force-dynamic';
+
 // ── GET: list all roles ──────────────────────────────────────
 export async function GET() {
     try {

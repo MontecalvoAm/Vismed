@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { QuotationRecord, updateQuotationStatus } from '@/lib/firestore/quotations';
-import { Package, User, Activity, Edit3, FileSearch, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft } from 'lucide-react';
+import { Package, User, Activity, Edit3, FileSearch, Trash2, Pencil, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft, Shield } from 'lucide-react';
+import { useConfirm } from '@/context/ConfirmContext';
+import { useAuth } from '@/context/AuthContext';
 import TrackingModal from './TrackingModal';
 import PdfViewerModal from './PdfViewerModal';
 
@@ -10,6 +13,8 @@ interface HistoryTableProps {
     data: QuotationRecord[];
     isLoading: boolean;
     onRefresh?: () => void;
+    onDelete?: (id: string) => Promise<void>;
+    onBulkDelete?: (ids: string[]) => Promise<void>;
 }
 
 const statusStyles: Record<string, string> = {
@@ -18,7 +23,11 @@ const statusStyles: Record<string, string> = {
     'Completed': 'bg-green-100 text-green-700',
 };
 
-export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTableProps) {
+export default function HistoryTable({ data, isLoading, onRefresh, onDelete, onBulkDelete }: HistoryTableProps) {
+    const router = useRouter();
+    const { confirm, alert } = useConfirm();
+    const { user } = useAuth();
+    const perms = user?.Permissions?.History;
     const [trackingQuotation, setTrackingQuotation] = useState<QuotationRecord | null>(null);
     const [trackingItemIndex, setTrackingItemIndex] = useState<number | null>(null);
     const [viewingQuotation, setViewingQuotation] = useState<QuotationRecord | null>(null);
@@ -55,7 +64,11 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to update status:', error);
-            alert('Failed to update status');
+            await alert({
+                title: 'Update Failed',
+                message: 'Failed to update status',
+                variant: 'danger'
+            });
         } finally {
             setStatusUpdatingId(null);
         }
@@ -88,6 +101,20 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
         }
     };
 
+    const handleBulkDelete = async () => {
+        if (!onBulkDelete || selectedRows.size === 0) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Selected Records',
+            message: `Are you sure you want to delete ${selectedRows.size} quotation(s)? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete All'
+        });
+        if (isConfirmed) {
+            await onBulkDelete(Array.from(selectedRows));
+            setSelectedRows(new Set());
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-16 text-center">
@@ -109,23 +136,40 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
 
     return (
         <div className="space-y-4">
+            {selectedRows.size > 0 && perms?.CanDelete && (
+                <div className="bg-brand-muted-blue/10 border border-brand-muted-blue/20 rounded-xl p-3 flex items-center justify-between mb-2 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                    <span className="text-sm font-semibold text-brand-dark-blue ml-2">
+                        {selectedRows.size} record(s) selected
+                    </span>
+                    <button
+                        onClick={handleBulkDelete}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-500 rounded-lg hover:bg-rose-600 shadow-sm shadow-rose-500/20 transition-all border border-transparent"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Selected
+                    </button>
+                </div>
+            )}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50/80">
                             <tr>
-                                <th className="px-4 py-4 w-10">
-                                    <input
-                                        type="checkbox"
-                                        checked={paginatedData.length > 0 && paginatedData.every(q => q.id && selectedRows.has(q.id))}
-                                        onChange={toggleSelectAll}
-                                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                                    />
-                                </th>
+                                {(perms?.CanEdit || perms?.CanDelete) && (
+                                    <th className="px-4 py-4 w-10">
+                                        <input
+                                            type="checkbox"
+                                            checked={paginatedData.length > 0 && paginatedData.every(q => q.id && selectedRows.has(q.id))}
+                                            onChange={toggleSelectAll}
+                                            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-4 py-4 w-10"></th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Date</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Client</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Prepared By</th>
+                                <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Guarantor</th>
                                 <th className="px-5 py-4 text-right font-semibold text-gray-600 tracking-wider whitespace-nowrap">Total</th>
                                 <th className="px-5 py-4 text-center font-semibold text-gray-600 tracking-wider whitespace-nowrap">Status</th>
                                 <th className="px-5 py-4 text-center font-semibold text-gray-600 tracking-wider whitespace-nowrap">Actions</th>
@@ -141,14 +185,16 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
                                             onClick={() => q.id && toggleRowExpand(q.id)}
                                             className={`hover:bg-primary/5 transition-colors group cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
                                         >
-                                            <td className="px-4 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!q.id && selectedRows.has(q.id)}
-                                                    onChange={() => q.id && toggleRowSelect(q.id)}
-                                                    className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                                                />
-                                            </td>
+                                            {(perms?.CanEdit || perms?.CanDelete) && (
+                                                <td className="px-4 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!q.id && selectedRows.has(q.id)}
+                                                        onChange={() => q.id && toggleRowSelect(q.id)}
+                                                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-4 py-4 whitespace-nowrap text-center">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); q.id && toggleRowExpand(q.id); }}
@@ -178,6 +224,12 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
                                                     {q.PreparedBy || <span className="italic text-gray-300">—</span>}
                                                 </div>
                                             </td>
+                                            <td className="px-5 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-1 text-xs text-gray-600">
+                                                    <Shield className="w-3 h-3" />
+                                                    {q.GuarantorName || <span className="italic text-gray-300">—</span>}
+                                                </div>
+                                            </td>
                                             <td className="px-5 py-4 whitespace-nowrap text-right font-semibold text-gray-900">
                                                 ₱{(q.Total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                                             </td>
@@ -186,8 +238,8 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
                                                     <select
                                                         value={q.Status || 'Incomplete'}
                                                         onChange={(e) => handleStatusChange(q.id!, e.target.value)}
-                                                        disabled={statusUpdatingId === q.id}
-                                                        className={`appearance-none bg-transparent border-none focus:ring-2 focus:ring-primary/20 rounded-full pl-3 pr-7 py-1 text-xs font-bold tracking-wider cursor-pointer ${statusStyles[q.Status || 'Incomplete'] || 'bg-gray-100 text-gray-700'
+                                                        disabled={statusUpdatingId === q.id || !perms?.CanEdit}
+                                                        className={`appearance-none bg-transparent border-none focus:ring-2 focus:ring-primary/20 rounded-full pl-3 pr-7 py-1 text-xs font-bold tracking-wider ${perms?.CanEdit ? 'cursor-pointer' : 'cursor-default opacity-75'} ${statusStyles[q.Status || 'Incomplete'] || 'bg-gray-100 text-gray-700'
                                                             } ${statusUpdatingId === q.id ? 'opacity-50' : ''}`}
                                                         style={{ textAlignLast: 'center' }}
                                                     >
@@ -209,12 +261,41 @@ export default function HistoryTable({ data, isLoading, onRefresh }: HistoryTabl
                                                     >
                                                         <FileSearch className="w-4 h-4" />
                                                     </button>
+                                                    {perms?.CanEdit && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); router.push('/history/edit/' + q.id); }}
+                                                            title="Edit Quotation"
+                                                            className="p-1.5 rounded-lg text-primary hover:text-white hover:bg-primary transition-all shadow-sm border border-brand-light-grey/20 bg-white"
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {perms?.CanDelete && (
+                                                        <button
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                const isConfirmed = await confirm({
+                                                                    title: 'Delete Quotation',
+                                                                    message: 'Are you sure you want to delete this quotation? This action cannot be undone.',
+                                                                    variant: 'danger',
+                                                                    confirmText: 'Delete'
+                                                                });
+                                                                if (isConfirmed) {
+                                                                    if (onDelete && q.id) onDelete(q.id);
+                                                                }
+                                                            }}
+                                                            title="Delete Quotation"
+                                                            className="p-1.5 rounded-lg text-red-500 hover:text-white hover:bg-red-500 transition-all shadow-sm border border-brand-light-grey/20 bg-white"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
                                         {isExpanded && (
                                             <tr className="bg-gray-50/30">
-                                                <td colSpan={8} className="px-0 py-0 border-b border-gray-100">
+                                                <td colSpan={9} className="px-0 py-0 border-b border-gray-100">
                                                     <div className="px-14 py-4">
                                                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                                                             <Package className="w-3.5 h-3.5" />

@@ -1,26 +1,33 @@
 'use client';
 
-import { Search, CalendarRange, Filter, Package } from 'lucide-react';
+import { Search, CalendarRange, Filter, Package, Shield } from 'lucide-react';
 
 interface HistoryFilterProps {
     searchTerm: string;
     onSearchChange: (val: string) => void;
     statusFilter: string;
     onStatusChange: (val: string) => void;
+    guarantorFilter: string;
+    onGuarantorChange: (val: string) => void;
+    availableGuarantors: { id: string; Name: string }[];
     dateFrom: string;
     onDateFromChange: (val: string) => void;
     dateTo: string;
     onDateToChange: (val: string) => void;
     minQuantity: string;
     onMinQuantityChange: (val: string) => void;
+    availableStatuses?: string[];
 }
 
 export default function HistoryFilter({
     searchTerm, onSearchChange,
     statusFilter, onStatusChange,
+    guarantorFilter, onGuarantorChange,
+    availableGuarantors,
     dateFrom, onDateFromChange,
     dateTo, onDateToChange,
     minQuantity, onMinQuantityChange,
+    availableStatuses = [],
 }: HistoryFilterProps) {
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-3">
@@ -48,9 +55,28 @@ export default function HistoryFilter({
                         onChange={(e) => onStatusChange(e.target.value)}
                     >
                         <option value="all">All Statuses</option>
-                        <option value="Incomplete">Incomplete</option>
-                        <option value="Waiting for Approval">Waiting for Approval</option>
-                        <option value="Completed">Completed</option>
+                        {availableStatuses.length > 0 ? (
+                            availableStatuses.map(s => <option key={s} value={s}>{s}</option>)
+                        ) : (
+                            <>
+                                <option value="Incomplete">Incomplete</option>
+                                <option value="Waiting for Approval">Waiting for Approval</option>
+                                <option value="Completed">Completed</option>
+                            </>
+                        )}
+                    </select>
+                </div>
+                <div className="relative w-full sm:w-52">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Shield className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <select
+                        className="block w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none appearance-none bg-white transition-colors"
+                        value={guarantorFilter}
+                        onChange={(e) => onGuarantorChange(e.target.value)}
+                    >
+                        <option value="all">All Guarantors</option>
+                        {availableGuarantors.map(g => <option key={g.id} value={g.Name}>{g.Name}</option>)}
                     </select>
                 </div>
             </div>

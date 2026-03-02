@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -15,7 +15,29 @@ import {
     Menu,
     X,
     LogOut,
+    Shield,
+    Box
 } from 'lucide-react';
+
+const ICON_MAP: Record<string, React.ElementType> = {
+    'LayoutDashboard': LayoutDashboard,
+    'ClipboardList': ClipboardList,
+    'History': History,
+    'Building2': Building2,
+    'Stethoscope': Stethoscope,
+    'Users': Users,
+    'Shield': Shield
+};
+
+interface AppModule {
+    ModuleID: string;
+    ModuleName: string;
+    Label: string;
+    Path: string;
+    Icon: string;
+    SortOrder: number;
+    IsActive: boolean;
+}
 
 interface SidebarLayoutProps {
     children: React.ReactNode;
@@ -27,16 +49,45 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    // Build navigation tabs based on resolved permissions and core routes
-    const navTabs = [
-        { href: '/quotation', label: 'Quotation', icon: <LayoutDashboard className="w-4 h-4" /> },
-        { href: '/history', label: 'Records', icon: <ClipboardList className="w-4 h-4" /> },
-        ...(user?.Permissions?.Departments?.CanView ? [{ href: '/departments', label: 'Departments', icon: <Building2 className="w-4 h-4" /> }] : []),
-        ...(user?.Permissions?.Services?.CanView ? [{ href: '/services', label: 'Items and Services', icon: <Stethoscope className="w-4 h-4" /> }] : []),
-        ...(user?.Permissions?.Users?.CanView ? [{ href: '/users', label: 'Users', icon: <Users className="w-4 h-4" /> }] : []),
-    ];
+    const [modules, setModules] = useState<AppModule[]>([]);
+    const [modulesLoading, setModulesLoading] = useState(true);
 
-    if (loading) {
+    useEffect(() => {
+        let isMounted = true;
+
+        fetch('/api/modules')
+            .then(res => res.json())
+            .then(data => {
+                if (isMounted && data.success) {
+                    setModules(data.modules || []);
+                }
+            })
+            .catch(err => console.error("Failed to fetch modules for sidebar", err))
+            .finally(() => {
+                if (isMounted) setModulesLoading(false);
+            });
+
+        return () => { isMounted = false; };
+    }, []);
+
+    // Build navigation tabs dynamically
+    const navTabs = modules
+        .filter(mod => {
+            // First two (Quotations, History) historically might be public to all users, 
+            // but the prompt specified: "Only modules with CanView === true for the active user will be displayed."
+            // So we strictly enforce CanView for everything.
+            return user?.Permissions?.[mod.ModuleName]?.CanView === true;
+        })
+        .map(mod => {
+            const IconComp = ICON_MAP[mod.Icon] || Box; // Fallback to Box icon
+            return {
+                href: mod.Path,
+                label: mod.Label,
+                icon: <IconComp className="w-4 h-4" />
+            };
+        });
+
+    if (loading || modulesLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
                 <div className="flex flex-col items-center gap-4">

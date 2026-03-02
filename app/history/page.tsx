@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { QuotationRecord, getQuotations, computeTotalQuantity } from '@/lib/firestore/quotations';
+import { QuotationRecord, getQuotations, computeTotalQuantity, deleteQuotation } from '@/lib/firestore/quotations';
+import { getGuarantors, GuarantorRecord } from '@/lib/firestore/guarantors';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { useConfirm } from '@/context/ConfirmContext';
 import HistoryFilter from '@/components/history/HistoryFilter';
 import HistoryTable from '@/components/history/HistoryTable';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import { History, FileText, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 
 export default function HistoryPage() {
+    const { alert } = useConfirm();
     const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -17,6 +21,8 @@ export default function HistoryPage() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [minQuantity, setMinQuantity] = useState('');
+    const [guarantorFilter, setGuarantorFilter] = useState('all');
+    const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
 
     const load = async () => {
         setLoading(true);
@@ -30,8 +36,75 @@ export default function HistoryPage() {
         }
     };
 
+    const loadGuarantors = async () => {
+        try {
+            const data = await getGuarantors();
+            setGuarantors(data);
+        } catch (err) {
+            console.error('Error fetching guarantors:', err);
+        }
+    };
+
+    const handleDeleteQuotation = async (id: string) => {
+        try {
+            const qToDel = quotations.find(q => q.id === id);
+            await deleteQuotation(id);
+            if (qToDel) {
+                await createAuditLog({
+                    Action: 'Deleted Quotation',
+                    Module: 'History',
+                    RecordID: id,
+                    Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
+                });
+            }
+            load();
+        } catch (err) {
+            console.error('Error deleting:', err);
+            await alert({
+                title: 'Delete Failed',
+                message: 'Failed to delete quotation.',
+                variant: 'danger'
+            });
+        }
+    };
+
+    const handleBulkDeleteQuotation = async (ids: string[]) => {
+        try {
+            await Promise.all(ids.map(async (id) => {
+                const qToDel = quotations.find(q => q.id === id);
+                await deleteQuotation(id);
+                if (qToDel) {
+                    await createAuditLog({
+                        Action: 'Deleted Quotation (Bulk)',
+                        Module: 'History',
+                        RecordID: id,
+                        Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
+                    });
+                }
+            }));
+            load();
+        } catch (err) {
+            console.error('Error bulk deleting:', err);
+            await alert({
+                title: 'Delete Failed',
+                message: 'Failed to delete some or all selected quotations.',
+                variant: 'danger'
+            });
+        }
+    };
+
+    // Calculate dynamic statuses
+    const dynamicStatuses = useMemo(() => {
+        const s = new Set<string>();
+        quotations.forEach(q => {
+            if (q.Status) s.add(q.Status);
+        });
+        return Array.from(s).sort();
+    }, [quotations]);
+
     useEffect(() => {
         load();
+        loadGuarantors();
     }, []);
 
     const filteredData = useMemo(() => {
@@ -41,8 +114,12 @@ export default function HistoryPage() {
             const qStr = searchTerm.toLowerCase();
             result = result.filter(
                 (r) =>
+                    (r.CustomerFirstName ?? '').toLowerCase().includes(qStr) ||
+                    (r.CustomerLastName ?? '').toLowerCase().includes(qStr) ||
                     (r.CustomerName ?? '').toLowerCase().includes(qStr) ||
                     (r.CustomerEmail ?? '').toLowerCase().includes(qStr) ||
+                    (r.DocumentNo ?? '').toLowerCase().includes(qStr) ||
+                    (r.GuarantorName ?? '').toLowerCase().includes(qStr) ||
                     (r.Items ?? []).some(item => (item.Name ?? '').toLowerCase().includes(qStr))
             );
         }
@@ -67,8 +144,12 @@ export default function HistoryPage() {
             result = result.filter((r) => computeTotalQuantity(r.Items ?? []) >= min);
         }
 
+        if (guarantorFilter !== 'all') {
+            result = result.filter((r) => r.GuarantorName === guarantorFilter);
+        }
+
         return result;
-    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, minQuantity]);
+    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, minQuantity, guarantorFilter]);
 
     // Computed stats
     const completeQuotations = useMemo(
@@ -157,16 +238,26 @@ export default function HistoryPage() {
                     onSearchChange={setSearchTerm}
                     statusFilter={statusFilter}
                     onStatusChange={setStatusFilter}
+                    guarantorFilter={guarantorFilter}
+                    onGuarantorChange={setGuarantorFilter}
+                    availableGuarantors={guarantors.map(g => ({ id: g.id!, Name: g.Name }))}
                     dateFrom={dateFrom}
                     onDateFromChange={setDateFrom}
                     dateTo={dateTo}
                     onDateToChange={setDateTo}
                     minQuantity={minQuantity}
                     onMinQuantityChange={setMinQuantity}
+                    availableStatuses={dynamicStatuses}
                 />
 
                 {/* Table */}
-                <HistoryTable data={filteredData} isLoading={loading} onRefresh={load} />
+                <HistoryTable
+                    data={filteredData}
+                    isLoading={loading}
+                    onRefresh={load}
+                    onDelete={handleDeleteQuotation}
+                    onBulkDelete={handleBulkDeleteQuotation}
+                />
             </div>
         </SidebarLayout>
     );

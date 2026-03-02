@@ -40,15 +40,21 @@ export async function addDepartment(
     createdBy: string
 ): Promise<string> {
     const id = generateUUIDv7();
-    await setDoc(doc(db, COL, id), {
-        ...data,
-        DepartmentID: id,
-        IsActive: true,
-        CreatedAt: serverTimestamp(),
-        CreatedBy: createdBy,
-        UpdatedAt: serverTimestamp(),
-        UpdatedBy: createdBy,
+    const res = await fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            ...data,
+            DepartmentID: id,
+            CreatedBy: createdBy
+        })
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add department');
+    }
+
     return id;
 }
 
@@ -57,18 +63,28 @@ export async function updateDepartment(
     data: Partial<Department>,
     updatedBy: string
 ): Promise<void> {
-    await updateDoc(doc(db, COL, DepartmentID), {
-        ...data,
-        UpdatedAt: serverTimestamp(),
-        UpdatedBy: updatedBy,
+    const res = await fetch(`/api/departments/${DepartmentID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, UpdatedBy: updatedBy })
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update department');
+    }
 }
 
 // Soft-delete: set IsActive = false
 export async function deleteDepartment(DepartmentID: string, updatedBy: string): Promise<void> {
-    await updateDoc(doc(db, COL, DepartmentID), {
-        IsActive: false,
-        UpdatedAt: serverTimestamp(),
-        UpdatedBy: updatedBy,
+    const res = await fetch(`/api/departments/${DepartmentID}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ UpdatedBy: updatedBy })
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to delete department');
+    }
 }

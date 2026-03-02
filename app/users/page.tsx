@@ -6,20 +6,27 @@ import { Role as RoleRecord, getAllRoles } from '@/lib/firestore/roles';
 import UserModal from '@/components/users/UserModal';
 import RoleModal from '@/components/users/RoleModal';
 import SidebarLayout from '@/components/layout/SidebarLayout';
+import { useConfirm } from '@/context/ConfirmContext';
 import {
     Plus, Edit2, Trash2, Shield, User as UserIcon,
-    Users, ShieldCheck, CheckCircle, XCircle, Search, Filter, ChevronLeft, ChevronRight
+    Users, ShieldCheck, CheckCircle, XCircle, Search, Filter, ChevronLeft, ChevronRight, Key
 } from 'lucide-react';
+import UserOverrideModal from '@/components/users/UserOverrideModal';
+import { useAuth } from '@/context/AuthContext';
 
 type ActiveTab = 'users' | 'roles';
 
 export default function UsersPage() {
+    const { confirm, alert } = useConfirm();
+    const { user } = useAuth();
+    const perms = user?.Permissions?.Users;
     const [activeTab, setActiveTab] = useState<ActiveTab>('users');
 
     // ── Users state ──────────────────────────────────────────
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [usersLoading, setUsersLoading] = useState(true);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+    const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
 
     // Filter & Pagination state
@@ -76,15 +83,27 @@ export default function UsersPage() {
     // ── User actions ─────────────────────────────────────────
     const handleAddUser = () => { setSelectedUser(null); setIsUserModalOpen(true); };
     const handleEditUser = (user: UserRecord) => { setSelectedUser(user); setIsUserModalOpen(true); };
+    const handleEditOverrides = (user: UserRecord) => { setSelectedUser(user); setIsOverrideModalOpen(true); };
     const handleDeleteUser = async (user: UserRecord) => {
-        if (!window.confirm(`Delete user ${user.FirstName} ${user.LastName}?`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete User',
+            message: `Delete user ${user.FirstName} ${user.LastName}? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete'
+        });
+        if (!isConfirmed) return;
+
         try {
             const res = await fetch(`/api/users/${user.UserID}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete user');
             loadUsers();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to delete user');
+            await alert({
+                title: 'Error Deleting User',
+                message: error.message || 'Failed to delete user',
+                variant: 'danger'
+            });
         }
     };
 
@@ -92,7 +111,14 @@ export default function UsersPage() {
     const handleAddRole = () => { setSelectedRole(null); setIsRoleModalOpen(true); };
     const handleEditRole = (role: RoleRecord) => { setSelectedRole(role); setIsRoleModalOpen(true); };
     const handleDeleteRole = async (role: RoleRecord) => {
-        if (!window.confirm(`Delete role "${role.RoleName}"? Users assigned this role will need to be updated.`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Role',
+            message: `Delete role "${role.RoleName}"? Users assigned this role will need to be updated.`,
+            variant: 'danger',
+            confirmText: 'Delete Role'
+        });
+        if (!isConfirmed) return;
+
         try {
             const res = await fetch(`/api/roles/${role.RoleID}`, { method: 'DELETE' });
             const data = await res.json();
@@ -100,7 +126,11 @@ export default function UsersPage() {
             loadRoles();
         } catch (error: any) {
             console.error(error);
-            alert(error.message || 'Failed to delete role');
+            await alert({
+                title: 'Error Deleting Role',
+                message: error.message || 'Failed to delete role',
+                variant: 'danger'
+            });
         }
     };
 
@@ -230,14 +260,16 @@ export default function UsersPage() {
                                 )}
                             </div>
 
-                            <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
-                                <button
-                                    onClick={handleAddUser}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
-                                >
-                                    <Plus className="w-4 h-4" /> Add User
-                                </button>
-                            </div>
+                            {perms?.CanAdd && (
+                                <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                                    <button
+                                        onClick={handleAddUser}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                    >
+                                        <Plus className="w-4 h-4" /> Add User
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="overflow-x-auto">
@@ -248,7 +280,9 @@ export default function UsersPage() {
                                         <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
                                         <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
                                         <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
+                                        {(perms?.CanEdit || perms?.CanDelete) && (
+                                            <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-100">
@@ -295,22 +329,37 @@ export default function UsersPage() {
                                                         }
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <button
-                                                        onClick={() => handleEditUser(user)}
-                                                        className="text-primary hover:text-primary/70 mr-4 transition"
-                                                        title="Edit user"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteUser(user)}
-                                                        className="text-red-500 hover:text-red-600 transition"
-                                                        title="Delete user"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </td>
+                                                {(perms?.CanEdit || perms?.CanDelete) && (
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        {perms?.CanEdit && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleEditOverrides(user)}
+                                                                    className="text-amber-500 hover:text-amber-600 mr-4 transition"
+                                                                    title="Custom Permissions"
+                                                                >
+                                                                    <Key className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleEditUser(user)}
+                                                                    className="text-primary hover:text-primary/70 mr-4 transition"
+                                                                    title="Edit user"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {perms?.CanDelete && (
+                                                            <button
+                                                                onClick={() => handleDeleteUser(user)}
+                                                                className="text-red-500 hover:text-red-600 transition"
+                                                                title="Delete user"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))
                                     )}
@@ -383,14 +432,16 @@ export default function UsersPage() {
                                     <Search className="w-4 h-4" />
                                 </div>
                             </div>
-                            <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
-                                <button
-                                    onClick={handleAddRole}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
-                                >
-                                    <Plus className="w-4 h-4" /> Add Role
-                                </button>
-                            </div>
+                            {perms?.CanAdd && (
+                                <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                                    <button
+                                        onClick={handleAddRole}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                    >
+                                        <Plus className="w-4 h-4" /> Add Role
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="overflow-x-auto">
@@ -441,22 +492,28 @@ export default function UsersPage() {
                                                         }
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <button
-                                                        onClick={() => handleEditRole(role)}
-                                                        className="text-primary hover:text-primary/70 mr-4 transition"
-                                                        title="Edit role"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteRole(role)}
-                                                        className="text-red-500 hover:text-red-600 transition"
-                                                        title="Delete role"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </td>
+                                                {(perms?.CanEdit || perms?.CanDelete) && (
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        {perms?.CanEdit && (
+                                                            <button
+                                                                onClick={() => handleEditRole(role)}
+                                                                className="text-primary hover:text-primary/70 mr-4 transition"
+                                                                title="Edit role"
+                                                            >
+                                                                <Edit2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                        {perms?.CanDelete && (
+                                                            <button
+                                                                onClick={() => handleDeleteRole(role)}
+                                                                className="text-red-500 hover:text-red-600 transition"
+                                                                title="Delete role"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))
                                     )}
@@ -519,6 +576,11 @@ export default function UsersPage() {
                 onClose={() => setIsUserModalOpen(false)}
                 user={selectedUser}
                 onSave={loadUsers}
+            />
+            <UserOverrideModal
+                isOpen={isOverrideModalOpen}
+                onClose={() => setIsOverrideModalOpen(false)}
+                user={selectedUser}
             />
             <RoleModal
                 isOpen={isRoleModalOpen}

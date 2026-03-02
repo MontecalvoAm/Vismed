@@ -1,11 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
+import { requireAuth } from '@/lib/auth/serverAuth';
 import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
 
 const COL = 'M_User';
+const MODULE_NAME = 'Users';
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
+    if (error) return error;
+
     try {
         const resolvedParams = await params;
         const body = await req.json();
@@ -57,7 +62,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    if (error) return error;
+
     try {
         const resolvedParams = await params;
 

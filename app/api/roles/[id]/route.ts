@@ -6,11 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { requireAuth } from '@/lib/auth/serverAuth';
 import * as admin from 'firebase-admin';
 
 const COL = 'M_Role';
+const MODULE_NAME = 'Users'; // Role management usually falls under the Users module access
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
+    if (error) return error;
     try {
         const { id } = await context.params;
         const { RoleName, Description, IsActive } = await req.json();
@@ -32,7 +36,9 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     }
 }
 
-export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    if (error) return error;
     try {
         const { id } = await context.params;
         await adminDb.collection(COL).doc(id).delete();

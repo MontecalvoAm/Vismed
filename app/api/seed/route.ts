@@ -63,6 +63,25 @@ export async function GET() {
             CreatedBy: 'Seed Script'
         });
 
+        // 3.5 Create Initial Modules
+        const appModules = [
+            { ModuleID: 'quotations', ModuleName: 'Quotation', Label: 'Quotation', Path: '/quotation', Icon: 'LayoutDashboard', SortOrder: 1 },
+            { ModuleID: 'history', ModuleName: 'History', Label: 'Records', Path: '/history', Icon: 'ClipboardList', SortOrder: 2 },
+            { ModuleID: 'departments', ModuleName: 'Departments', Label: 'Departments', Path: '/departments', Icon: 'Building2', SortOrder: 3 },
+            { ModuleID: 'guarantors', ModuleName: 'Guarantors', Label: 'Guarantors', Path: '/guarantors', Icon: 'Shield', SortOrder: 4 },
+            { ModuleID: 'services', ModuleName: 'Services', Label: 'Items and Services', Path: '/services', Icon: 'Stethoscope', SortOrder: 5 },
+            { ModuleID: 'users', ModuleName: 'Users', Label: 'Users', Path: '/users', Icon: 'Users', SortOrder: 6 }
+        ];
+
+        for (const mod of appModules) {
+            const ref = doc(db, 'M_Module', mod.ModuleID);
+            batch.set(ref, {
+                ...mod,
+                IsActive: true,
+                CreatedAt: new Date().toISOString()
+            });
+        }
+
         // 4. Create Initial Departments
         const depts = [
             { DepartmentName: 'Cardiology', Icon: '🫀', Description: 'Heart and cardiovascular care', SortOrder: 1 },
