@@ -587,6 +587,7 @@ export default function UsersPage() {
                 onClose={() => setIsRoleModalOpen(false)}
                 role={selectedRole}
                 onSave={loadRoles}
+                existingRoles={roles}
             />
         </SidebarLayout >
     );

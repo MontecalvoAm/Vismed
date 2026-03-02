@@ -33,9 +33,10 @@ interface RoleModalProps {
     onClose: () => void;
     role?: RoleRecord | null;
     onSave: () => void;
+    existingRoles?: RoleRecord[];
 }
 
-export default function RoleModal({ isOpen, onClose, role, onSave }: RoleModalProps) {
+export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles = [] }: RoleModalProps) {
     const [roleName, setRoleName] = useState('');
     const [description, setDescription] = useState('');
     const [isActive, setIsActive] = useState(true);
@@ -91,8 +92,19 @@ export default function RoleModal({ isOpen, onClose, role, onSave }: RoleModalPr
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true);
         setError('');
+
+        // ── Client-side duplicate check ──
+        const isDuplicate = existingRoles.some(
+            r => r.RoleName.toLowerCase() === roleName.trim().toLowerCase()
+                && r.RoleID !== role?.RoleID
+        );
+        if (isDuplicate) {
+            setError('A role with this name already exists.');
+            return;
+        }
+
+        setSaving(true);
 
         try {
             const endpoint = role ? `/api/roles/${role.RoleID}` : '/api/roles';
