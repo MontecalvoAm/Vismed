@@ -13,6 +13,7 @@ import { getDepartments, addDepartment, type Department } from '@/lib/firestore/
 import { useAuth } from '@/context/AuthContext';
 import FormModal from '@/components/manage/FormModal';
 import AccessDenied from '@/components/AccessDenied';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const EMPTY_FORM = { ServiceName: '', DepartmentID: '', Price: 0, Unit: 'per session', Description: '' };
@@ -32,6 +33,12 @@ export default function ServiceManager() {
     const [form, setForm] = useState(EMPTY_FORM);
     const [deleteConfirm, setDeleteConfirm] = useState<Service | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     // Filter & Search
     const [searchTerm, setSearchTerm] = useState('');
@@ -99,8 +106,12 @@ export default function ServiceManager() {
                 await addService({ ...form, Price: Number(form.Price), IsActive: true }, by);
             }
             setModalOpen(false);
+            setFeedback({ isOpen: true, type: 'success', title: 'Success', message: editTarget ? 'Service updated successfully.' : 'Service added successfully.' });
             await load();
-        } catch { setError('Failed to save. Please try again.'); }
+        } catch {
+            setError('Failed to save. Please try again.');
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save service. Please try again.' });
+        }
         finally { setSaving(false); }
     };
 
@@ -116,6 +127,9 @@ export default function ServiceManager() {
                 return next;
             });
             await load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Service successfully deleted.' });
+        } catch (err) {
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete service.' });
         } finally { setSaving(false); }
     };
 
@@ -128,6 +142,9 @@ export default function ServiceManager() {
             await Promise.all(promises);
             setSelectedIds(new Set());
             await load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected services successfully deleted.' });
+        } catch (err) {
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete selected services.' });
         } finally { setSaving(false); }
     };
 
@@ -261,8 +278,10 @@ export default function ServiceManager() {
             setUploadData(null);
             setUploadProgress(null);
             await load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Upload Complete', message: 'Services successfully uploaded and created.' });
         } catch (err) {
             setError('Failed to batch save uploaded data.');
+            setFeedback({ isOpen: true, type: 'error', title: 'Upload Failed', message: 'Failed to batch save uploaded data.' });
             console.error(err);
         } finally {
             setSaving(false);
@@ -622,6 +641,15 @@ export default function ServiceManager() {
                     </div>
                 </div>
             </FormModal>
+
+            {/* Global Feedback Modal */}
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
+            />
         </div>
     );
 }

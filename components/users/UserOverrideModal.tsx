@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { UserRecord } from '@/lib/firestore/users';
 import { Loader2 } from 'lucide-react';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 interface UserOverrideModalProps {
     isOpen: boolean;
@@ -29,6 +30,12 @@ export default function UserOverrideModal({ isOpen, onClose, user }: UserOverrid
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     const [modules, setModules] = useState<AppModule[]>([]);
 
@@ -103,11 +110,19 @@ export default function UserOverrideModal({ isOpen, onClose, user }: UserOverrid
             const data = await res.json();
             if (!data.success) throw new Error(data.error);
 
-            onClose();
+            setFeedback({ isOpen: true, type: 'success', title: 'Success', message: 'Overrides saved successfully.' });
         } catch (err: any) {
             setError(err.message || 'Failed to save overrides');
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: err.message || 'Failed to save overrides.' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleFeedbackClose = () => {
+        setFeedback(f => ({ ...f, isOpen: false }));
+        if (feedback.type === 'success') {
+            onClose();
         }
     };
 
@@ -257,6 +272,14 @@ export default function UserOverrideModal({ isOpen, onClose, user }: UserOverrid
                     </button>
                 </div>
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={handleFeedbackClose}
+            />
         </div>
     );
 }

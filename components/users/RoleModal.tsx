@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 
 import { Loader2 } from 'lucide-react';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 export interface RoleRecord {
     RoleID: string;
@@ -43,6 +44,12 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     // Dynamic permissions state
     const [modules, setModules] = useState<AppModule[]>([]);
@@ -133,12 +140,20 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
             const permsData = await permsRes.json();
             if (!permsData.success) throw new Error(permsData.error || 'Failed to save permissions.');
 
-            onSave();
-            onClose();
+            setFeedback({ isOpen: true, type: 'success', title: 'Success', message: role ? 'Role updated successfully.' : 'Role created successfully.' });
         } catch (err: any) {
             setError(err.message);
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: err.message || 'Failed to save role.' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleFeedbackClose = () => {
+        setFeedback(f => ({ ...f, isOpen: false }));
+        if (feedback.type === 'success') {
+            onSave();
+            onClose();
         }
     };
 
@@ -300,6 +315,14 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
                     </button>
                 </div>
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={handleFeedbackClose}
+            />
         </div>
     );
 }

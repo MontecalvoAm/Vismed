@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/context/ConfirmContext';
 import FormModal from '@/components/manage/FormModal';
 import AccessDenied from '@/components/AccessDenied';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 const EMPTY_FORM = { Name: '', Description: '' };
 
@@ -29,6 +30,12 @@ export default function GuarantorManager() {
     const [form, setForm] = useState(EMPTY_FORM);
     const [deleteConfirm, setDeleteConfirm] = useState<GuarantorRecord | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
     const [expandedLoading, setExpandedLoading] = useState(false);
@@ -71,8 +78,12 @@ export default function GuarantorManager() {
                 await addGuarantor({ ...form, Name: form.Name.trim() });
             }
             setModalOpen(false);
+            setFeedback({ isOpen: true, type: 'success', title: 'Success', message: editTarget ? 'Guarantor updated successfully.' : 'Guarantor added successfully.' });
             await load();
-        } catch { setError('Failed to save. Please try again.'); }
+        } catch {
+            setError('Failed to save. Please try again.');
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save guarantor. Please try again.' });
+        }
         finally { setSaving(false); }
     };
 
@@ -88,6 +99,9 @@ export default function GuarantorManager() {
                 return next;
             });
             await load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Guarantor successfully deleted.' });
+        } catch (err) {
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete guarantor.' });
         } finally { setSaving(false); }
     };
 
@@ -99,6 +113,9 @@ export default function GuarantorManager() {
             await Promise.all(promises);
             setSelectedIds(new Set());
             await load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected guarantors successfully deleted.' });
+        } catch (err) {
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete selected guarantors.' });
         } finally { setSaving(false); }
     };
 
@@ -435,6 +452,15 @@ export default function GuarantorManager() {
                     </div>
                 </div>
             </FormModal>
+
+            {/* Global Feedback Modal */}
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
+            />
         </div>
     );
 }

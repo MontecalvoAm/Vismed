@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { UserRecord } from '@/lib/firestore/users';
 import { getRoles } from '@/lib/firestore/roles';
 import type { RoleRecord } from '@/components/users/RoleModal';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 interface UserModalProps {
     isOpen: boolean;
@@ -23,6 +24,12 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
     const [error, setError] = useState('');
     const [roles, setRoles] = useState<RoleRecord[]>([]);
     const [rolesLoading, setRolesLoading] = useState(false);
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     // Load active roles from Firestore directly (client SDK)
     useEffect(() => {
@@ -92,12 +99,20 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Failed to save user.');
 
-            onSave();
-            onClose();
+            setFeedback({ isOpen: true, type: 'success', title: 'Success', message: user ? 'User updated successfully.' : 'User created successfully.' });
         } catch (err: any) {
             setError(err.message);
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: err.message || 'Failed to save user.' });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFeedbackClose = () => {
+        setFeedback(f => ({ ...f, isOpen: false }));
+        if (feedback.type === 'success') {
+            onSave();
+            onClose();
         }
     };
 
@@ -228,6 +243,14 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
                     </div>
                 </form>
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={handleFeedbackClose}
+            />
         </div>
     );
 }
