@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 
 import { Loader2 } from 'lucide-react';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 export interface RoleRecord {
     RoleID: string;
@@ -33,15 +34,22 @@ interface RoleModalProps {
     onClose: () => void;
     role?: RoleRecord | null;
     onSave: () => void;
+    existingRoles?: RoleRecord[];
 }
 
-export default function RoleModal({ isOpen, onClose, role, onSave }: RoleModalProps) {
+export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles = [] }: RoleModalProps) {
     const [roleName, setRoleName] = useState('');
     const [description, setDescription] = useState('');
     const [isActive, setIsActive] = useState(true);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     // Dynamic permissions state
     const [modules, setModules] = useState<AppModule[]>([]);
@@ -91,8 +99,19 @@ export default function RoleModal({ isOpen, onClose, role, onSave }: RoleModalPr
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true);
         setError('');
+
+        // ── Client-side duplicate check ──
+        const isDuplicate = existingRoles.some(
+            r => r.RoleName.toLowerCase() === roleName.trim().toLowerCase()
+                && r.RoleID !== role?.RoleID
+        );
+        if (isDuplicate) {
+            setError('A role with this name already exists.');
+            return;
+        }
+
+        setSaving(true);
 
         try {
             const endpoint = role ? `/api/roles/${role.RoleID}` : '/api/roles';
@@ -121,12 +140,20 @@ export default function RoleModal({ isOpen, onClose, role, onSave }: RoleModalPr
             const permsData = await permsRes.json();
             if (!permsData.success) throw new Error(permsData.error || 'Failed to save permissions.');
 
-            onSave();
-            onClose();
+            setFeedback({ isOpen: true, type: 'success', title: 'Success', message: role ? 'Role updated successfully.' : 'Role created successfully.' });
         } catch (err: any) {
             setError(err.message);
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: err.message || 'Failed to save role.' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleFeedbackClose = () => {
+        setFeedback(f => ({ ...f, isOpen: false }));
+        if (feedback.type === 'success') {
+            onSave();
+            onClose();
         }
     };
 
@@ -288,6 +315,14 @@ export default function RoleModal({ isOpen, onClose, role, onSave }: RoleModalPr
                     </button>
                 </div>
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={handleFeedbackClose}
+            />
         </div>
     );
 }

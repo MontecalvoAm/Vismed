@@ -40,6 +40,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: 'RoleName is required.' }, { status: 400 });
         }
 
+        // ── Duplicate check ──
+        const existing = await adminDb.collection(COL)
+            .where('RoleName', '==', RoleName.trim())
+            .limit(1)
+            .get();
+        if (!existing.empty) {
+            return NextResponse.json(
+                { success: false, error: 'A role with this name already exists.' },
+                { status: 409 }
+            );
+        }
+
         const ref = adminDb.collection(COL).doc();
         await ref.set({
             RoleName: RoleName.trim(),

@@ -5,6 +5,7 @@ import { QuotationRecord, updateQuotation, QuotationItem } from '@/lib/firestore
 import { createAuditLog } from '@/lib/firestore/audit';
 import { useConfirm } from '@/context/ConfirmContext';
 import { X, Save, Clock, Package, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 interface TrackingModalProps {
     isOpen: boolean;
@@ -18,6 +19,12 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
     const { alert } = useConfirm();
     const [items, setItems] = useState<QuotationItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     useEffect(() => {
         if (quotation?.Items) {
@@ -99,17 +106,20 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                 });
             }
 
-            onSaveSuccess();
-            onClose();
+            setFeedback({ isOpen: true, type: 'success', title: 'Saved', message: 'Tracking progress saved successfully.' });
         } catch (error) {
             console.error('Failed to update tracking:', error);
-            await alert({
-                title: 'Save Failed',
-                message: 'Failed to save tracking progress.',
-                variant: 'danger'
-            });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save tracking progress.' });
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleFeedbackClose = () => {
+        setFeedback(f => ({ ...f, isOpen: false }));
+        if (feedback.type === 'success') {
+            onSaveSuccess();
+            onClose();
         }
     };
 
@@ -182,17 +192,19 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                 {/* Tracking List */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                     <div className="space-y-3">
-                        {items.map((item, index) => {
+                        {items.filter((_, index) => initialItemIndex == null || initialItemIndex === index).map((item, localIndex) => {
+                            // Recover the original index so that handleDecrement/handleIncrement/handleSetMax update the correct item in state
+                            const originalIndex = initialItemIndex != null ? initialItemIndex : localIndex;
                             const used = item.Used || 0;
                             const max = item.Quantity;
                             const isCompleted = used === max;
                             const isSession = item.Unit?.toLowerCase().includes('session');
 
-                            const isHighlighted = initialItemIndex === index;
+                            const isHighlighted = initialItemIndex === originalIndex;
 
                             return (
                                 <div
-                                    key={index}
+                                    key={originalIndex}
                                     className={`relative p-4 rounded-xl border transition-all ${isCompleted ? 'bg-green-50/50 border-green-200' : isHighlighted ? 'bg-brand-muted-blue/5 border-brand-muted-blue shadow-md scale-[1.01]' : 'bg-white border-slate-200 shadow-sm'}`}
                                 >
                                     {isCompleted && (
@@ -218,7 +230,7 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
 
                                         <div className="flex items-center shrink-0 bg-slate-50 rounded-lg p-1 border border-slate-200 shadow-inner">
                                             <button
-                                                onClick={() => handleDecrement(index)}
+                                                onClick={() => handleDecrement(originalIndex)}
                                                 disabled={used <= 0}
                                                 className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent transition-all font-mono text-lg"
                                             >
@@ -233,7 +245,7 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                                                 </span>
                                             </div>
                                             <button
-                                                onClick={() => handleIncrement(index)}
+                                                onClick={() => handleIncrement(originalIndex)}
                                                 disabled={used >= max}
                                                 className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent transition-all font-mono text-lg"
                                             >
@@ -242,7 +254,7 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
 
                                             {!isCompleted && (
                                                 <button
-                                                    onClick={() => handleSetMax(index)}
+                                                    onClick={() => handleSetMax(originalIndex)}
                                                     className="ml-1 px-2 h-8 rounded-md text-[10px] font-bold text-brand-muted-blue hover:bg-brand-muted-blue/10 transition-colors uppercase tracking-wider"
                                                     title="Mark all as completed"
                                                 >
@@ -286,6 +298,14 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                 </div>
 
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={handleFeedbackClose}
+            />
         </div>
     );
 }

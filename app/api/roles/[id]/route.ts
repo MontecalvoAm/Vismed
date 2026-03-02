@@ -23,6 +23,19 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
             return NextResponse.json({ success: false, error: 'RoleName is required.' }, { status: 400 });
         }
 
+        // ── Duplicate check (exclude self) ──
+        const existing = await adminDb.collection(COL)
+            .where('RoleName', '==', RoleName.trim())
+            .limit(1)
+            .get();
+        const conflict = existing.docs.find(doc => doc.id !== id);
+        if (conflict) {
+            return NextResponse.json(
+                { success: false, error: 'A role with this name already exists.' },
+                { status: 409 }
+            );
+        }
+
         await adminDb.collection(COL).doc(id).update({
             RoleName: RoleName.trim(),
             Description: Description?.trim() ?? '',

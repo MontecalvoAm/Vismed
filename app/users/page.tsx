@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import UserOverrideModal from '@/components/users/UserOverrideModal';
 import { useAuth } from '@/context/AuthContext';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 type ActiveTab = 'users' | 'roles';
 
@@ -21,6 +22,12 @@ export default function UsersPage() {
     const { user } = useAuth();
     const perms = user?.Permissions?.Users;
     const [activeTab, setActiveTab] = useState<ActiveTab>('users');
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     // ── Users state ──────────────────────────────────────────
     const [users, setUsers] = useState<UserRecord[]>([]);
@@ -97,13 +104,10 @@ export default function UsersPage() {
             const res = await fetch(`/api/users/${user.UserID}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete user');
             loadUsers();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'User deleted successfully.' });
         } catch (error: any) {
             console.error(error);
-            await alert({
-                title: 'Error Deleting User',
-                message: error.message || 'Failed to delete user',
-                variant: 'danger'
-            });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: error.message || 'Failed to delete user' });
         }
     };
 
@@ -124,13 +128,10 @@ export default function UsersPage() {
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Failed to delete role');
             loadRoles();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Role deleted successfully.' });
         } catch (error: any) {
             console.error(error);
-            await alert({
-                title: 'Error Deleting Role',
-                message: error.message || 'Failed to delete role',
-                variant: 'danger'
-            });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: error.message || 'Failed to delete role' });
         }
     };
 
@@ -587,6 +588,15 @@ export default function UsersPage() {
                 onClose={() => setIsRoleModalOpen(false)}
                 role={selectedRole}
                 onSave={loadRoles}
+                existingRoles={roles}
+            />
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
             />
         </SidebarLayout >
     );

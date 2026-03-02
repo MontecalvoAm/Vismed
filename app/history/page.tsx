@@ -9,18 +9,24 @@ import HistoryFilter from '@/components/history/HistoryFilter';
 import HistoryTable from '@/components/history/HistoryTable';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import { History, FileText, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 export default function HistoryPage() {
     const { alert } = useConfirm();
     const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const [minQuantity, setMinQuantity] = useState('');
     const [guarantorFilter, setGuarantorFilter] = useState('all');
     const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
 
@@ -58,13 +64,10 @@ export default function HistoryPage() {
                 });
             }
             load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Quotation successfully deleted.' });
         } catch (err) {
             console.error('Error deleting:', err);
-            await alert({
-                title: 'Delete Failed',
-                message: 'Failed to delete quotation.',
-                variant: 'danger'
-            });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete quotation.' });
         }
     };
 
@@ -83,13 +86,10 @@ export default function HistoryPage() {
                 }
             }));
             load();
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected quotations successfully deleted.' });
         } catch (err) {
             console.error('Error bulk deleting:', err);
-            await alert({
-                title: 'Delete Failed',
-                message: 'Failed to delete some or all selected quotations.',
-                variant: 'danger'
-            });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete some or all selected quotations.' });
         }
     };
 
@@ -139,17 +139,12 @@ export default function HistoryPage() {
             result = result.filter((r) => r.CreatedAt && new Date(r.CreatedAt) <= to);
         }
 
-        if (minQuantity) {
-            const min = parseInt(minQuantity, 10);
-            result = result.filter((r) => computeTotalQuantity(r.Items ?? []) >= min);
-        }
-
         if (guarantorFilter !== 'all') {
             result = result.filter((r) => r.GuarantorName === guarantorFilter);
         }
 
         return result;
-    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, minQuantity, guarantorFilter]);
+    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, guarantorFilter]);
 
     // Computed stats
     const completeQuotations = useMemo(
@@ -245,8 +240,6 @@ export default function HistoryPage() {
                     onDateFromChange={setDateFrom}
                     dateTo={dateTo}
                     onDateToChange={setDateTo}
-                    minQuantity={minQuantity}
-                    onMinQuantityChange={setMinQuantity}
                     availableStatuses={dynamicStatuses}
                 />
 
@@ -259,6 +252,14 @@ export default function HistoryPage() {
                     onBulkDelete={handleBulkDeleteQuotation}
                 />
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
+            />
         </SidebarLayout>
     );
 }

@@ -40,7 +40,7 @@ export default function PdfViewerModal({ isOpen, onClose, quotation }: PdfViewer
             const fullHeight = el.scrollHeight;
 
             const canvas = await html2canvas(el, {
-                scale: 3,
+                scale: 5,
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 width: fullWidth,

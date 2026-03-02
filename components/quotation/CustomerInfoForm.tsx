@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight, Shield, Layers } from 'lucide-react';
 import { getGuarantors, addGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
+import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 interface CustomerInfoFormProps {
     data: any;
@@ -15,6 +16,12 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
     const [guarantorSearch, setGuarantorSearch] = useState('');
     const [isGuarantorOpen, setIsGuarantorOpen] = useState(false);
     const [isCreatingGuarantor, setIsCreatingGuarantor] = useState(false);
+    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
 
     useEffect(() => {
         getGuarantors().then(setGuarantors).catch(console.error);
@@ -163,8 +170,10 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
                                         setGuarantors(refreshed);
                                         setGuarantorSearch(trimmed);
                                         onChange({ ...data, guarantorId: newId, guarantorName: trimmed });
+                                        setFeedback({ isOpen: true, type: 'success', title: 'Created', message: `Guarantor '${trimmed}' added successfully.` });
                                     } catch (err) {
                                         console.error('Auto-create guarantor failed:', err);
+                                        setFeedback({ isOpen: true, type: 'error', title: 'Failed', message: 'Could not auto-create guarantor.' });
                                     } finally {
                                         setIsCreatingGuarantor(false);
                                     }
@@ -282,6 +291,14 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </button>
             </div>
+
+            <FeedbackModal
+                isOpen={feedback.isOpen}
+                type={feedback.type}
+                title={feedback.title}
+                message={feedback.message}
+                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
+            />
         </form>
     );
 }

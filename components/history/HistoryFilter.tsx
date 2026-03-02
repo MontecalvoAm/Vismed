@@ -14,8 +14,6 @@ interface HistoryFilterProps {
     onDateFromChange: (val: string) => void;
     dateTo: string;
     onDateToChange: (val: string) => void;
-    minQuantity: string;
-    onMinQuantityChange: (val: string) => void;
     availableStatuses?: string[];
 }
 
@@ -26,7 +24,6 @@ export default function HistoryFilter({
     availableGuarantors,
     dateFrom, onDateFromChange,
     dateTo, onDateToChange,
-    minQuantity, onMinQuantityChange,
     availableStatuses = [],
 }: HistoryFilterProps) {
     return (
@@ -99,17 +96,6 @@ export default function HistoryFilter({
                         onChange={(e) => onDateToChange(e.target.value)}
                         className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
                         title="To date"
-                    />
-                </div>
-                <div className="relative w-full sm:w-52 flex items-center gap-2">
-                    <Package className="h-4 w-4 text-gray-400 shrink-0" />
-                    <input
-                        type="number"
-                        min="0"
-                        value={minQuantity}
-                        onChange={(e) => onMinQuantityChange(e.target.value)}
-                        placeholder="Min quantity"
-                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
                     />
                 </div>
             </div>
