@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight, Shield, Layers } from 'lucide-react';
-import { getGuarantors, GuarantorRecord } from '@/lib/firestore/guarantors';
+import { getGuarantors, addGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
 
 interface CustomerInfoFormProps {
     data: any;
@@ -14,6 +14,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
     const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
     const [guarantorSearch, setGuarantorSearch] = useState('');
     const [isGuarantorOpen, setIsGuarantorOpen] = useState(false);
+    const [isCreatingGuarantor, setIsCreatingGuarantor] = useState(false);
 
     useEffect(() => {
         getGuarantors().then(setGuarantors).catch(console.error);
@@ -135,9 +136,44 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
                                     }
                                 }}
                                 onFocus={() => setIsGuarantorOpen(true)}
-                                onBlur={() => setTimeout(() => setIsGuarantorOpen(false), 200)}
+                                onBlur={async () => {
+                                    // Delay to allow dropdown click to register first
+                                    await new Promise(r => setTimeout(r, 200));
+                                    setIsGuarantorOpen(false);
+
+                                    const trimmed = guarantorSearch.trim();
+                                    if (!trimmed) return;
+
+                                    // Check if already selected from the list
+                                    if (data.guarantorName === trimmed) return;
+
+                                    // Check if name matches an existing guarantor (case-insensitive)
+                                    const existing = guarantors.find(g => g.Name.toLowerCase() === trimmed.toLowerCase());
+                                    if (existing) {
+                                        setGuarantorSearch(existing.Name);
+                                        onChange({ ...data, guarantorId: existing.id, guarantorName: existing.Name });
+                                        return;
+                                    }
+
+                                    // Auto-create the new guarantor
+                                    setIsCreatingGuarantor(true);
+                                    try {
+                                        const newId = await addGuarantor({ Name: trimmed });
+                                        const refreshed = await getGuarantors();
+                                        setGuarantors(refreshed);
+                                        setGuarantorSearch(trimmed);
+                                        onChange({ ...data, guarantorId: newId, guarantorName: trimmed });
+                                    } catch (err) {
+                                        console.error('Auto-create guarantor failed:', err);
+                                    } finally {
+                                        setIsCreatingGuarantor(false);
+                                    }
+                                }}
                             />
                             {/* Dropdown list */}
+                            {isCreatingGuarantor && (
+                                <p className="text-xs text-primary font-medium mt-1 animate-pulse">Creating new guarantor...</p>
+                            )}
                             {isGuarantorOpen && (
                                 <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg ring-1 ring-black/5">
                                     <li

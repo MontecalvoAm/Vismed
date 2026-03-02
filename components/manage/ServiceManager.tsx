@@ -375,29 +375,31 @@ export default function ServiceManager() {
                         </select>
                     </div>
 
-                    {perms?.CanAdd && (
-                        <div className="flex items-center justify-end gap-2 w-full lg:w-auto mt-3 sm:mt-0">
-                            {selectedIds.size > 0 && perms?.CanDelete && (
-                                <button onClick={handleBulkDelete}
-                                    disabled={saving}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 font-semibold rounded-xl hover:bg-red-100 transition-all text-sm whitespace-nowrap shadow-sm disabled:opacity-50"
-                                >
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                    Delete Selected ({selectedIds.size})
-                                </button>
-                            )}
-                            <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .csv" onChange={handleFileUpload} />
+                    <div className="flex items-center justify-end gap-2 w-full lg:w-auto mt-3 sm:mt-0">
+                        {selectedIds.size > 0 && perms?.CanDelete && (
+                            <button onClick={handleBulkDelete}
+                                disabled={saving}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 font-semibold rounded-xl hover:bg-red-100 transition-all text-sm whitespace-nowrap shadow-sm disabled:opacity-50"
+                            >
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                Delete Selected ({selectedIds.size})
+                            </button>
+                        )}
+                        <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .csv" onChange={handleFileUpload} />
+                        {perms?.CanAdd && (
                             <button onClick={() => fileInputRef.current?.click()}
                                 className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 focus:ring-2 focus:ring-primary/20 transition-all active:scale-[0.98] text-sm shadow-sm whitespace-nowrap"
                             >
                                 <Upload className="w-4 h-4" /> Upload Services or Items
                             </button>
+                        )}
+                        {perms?.CanAdd && (
                             <button onClick={openAdd}
                                 className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm">
                                 <Plus className="w-4 h-4" /> Add Services or Items
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 {loading ? (
@@ -418,7 +420,9 @@ export default function ServiceManager() {
                                     <th className="px-5 py-3.5 text-left font-semibold text-slate-600">Service Name</th>
                                     <th className="px-5 py-3.5 text-left font-semibold text-slate-600 hidden md:table-cell">Department</th>
                                     <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Price</th>
-                                    <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Actions</th>
+                                    {(perms?.CanEdit || perms?.CanDelete) && (
+                                        <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Actions</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -437,20 +441,22 @@ export default function ServiceManager() {
                                         <td className="px-5 py-3.5 font-semibold text-slate-800">{s.ServiceName}</td>
                                         <td className="px-5 py-3.5 text-slate-500 hidden md:table-cell">{deptName(s.DepartmentID)}</td>
                                         <td className="px-5 py-3.5 text-right font-bold text-slate-800 tabular-nums">{fmt(s.Price)} <span className="font-normal text-slate-400 text-xs">/{s.Unit}</span></td>
-                                        <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
-                                            <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                {perms?.CanEdit && (
-                                                    <button onClick={() => openEdit(s)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 rounded-full transition-colors" title="Edit Service">
-                                                        <Pencil className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                                {perms?.CanDelete && (
-                                                    <button onClick={() => setDeleteConfirm(s)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Delete Service">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
+                                        {(perms?.CanEdit || perms?.CanDelete) && (
+                                            <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                    {perms?.CanEdit && (
+                                                        <button onClick={() => openEdit(s)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 rounded-full transition-colors" title="Edit Service">
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {perms?.CanDelete && (
+                                                        <button onClick={() => setDeleteConfirm(s)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Delete Service">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

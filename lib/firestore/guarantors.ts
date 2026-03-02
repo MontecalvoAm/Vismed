@@ -28,13 +28,23 @@ const COL = 'T_Guarantor';
 export async function addGuarantor(
     data: Omit<GuarantorRecord, 'id' | 'CreatedAt' | 'UpdatedAt'>
 ): Promise<string> {
-    const newDocRef = doc(collection(db, COL));
-    await setDoc(newDocRef, {
-        ...data,
-        CreatedAt: serverTimestamp(),
-        UpdatedAt: serverTimestamp(),
+    const res = await fetch('/api/guarantors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            GuarantorName: data.Name,
+            Description: data.Description || '',
+            // The API handles mapping these to the M_Guarantor schema
+        })
     });
-    return newDocRef.id;
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add guarantor');
+    }
+
+    const { id } = await res.json();
+    return id;
 }
 
 export async function getGuarantors(): Promise<GuarantorRecord[]> {
@@ -69,12 +79,30 @@ export async function updateGuarantor(
     id: string,
     data: Partial<Omit<GuarantorRecord, 'id' | 'CreatedAt' | 'UpdatedAt'>>
 ): Promise<void> {
-    await updateDoc(doc(db, COL, id), {
-        ...data,
-        UpdatedAt: serverTimestamp(),
+    const payload: any = {};
+    if (data.Name) payload.GuarantorName = data.Name;
+    if (data.Description !== undefined) payload.Description = data.Description;
+
+    const res = await fetch(`/api/guarantors/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update guarantor');
+    }
 }
 
 export async function deleteGuarantor(id: string): Promise<void> {
-    await deleteDoc(doc(db, COL, id));
+    const res = await fetch(`/api/guarantors/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to delete guarantor');
+    }
 }

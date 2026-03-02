@@ -40,9 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const fetchMe = async () => {
         try {
-            const res = await fetch('/api/auth/me');
+            const res = await fetch('/api/auth/me', {
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
             if (res.ok) {
                 const data = await res.json();
+                console.log("[AuthContext] LIVE Current Permissions loaded:", data.Permissions);
                 if (data.authenticated === false || data.error) {
                     setUser(null);
                 } else {

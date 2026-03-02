@@ -18,7 +18,7 @@ const EMPTY_FORM = { Name: '', Description: '' };
 export default function GuarantorManager() {
     const { user } = useAuth();
     const { alert } = useConfirm();
-    const perms = user?.Permissions?.Departments;
+    const perms = user?.Permissions?.Guarantors;
 
     const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -199,6 +199,7 @@ export default function GuarantorManager() {
                 </div>
             </div>
 
+
             {/* Table Container */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
                 <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white">
@@ -214,23 +215,23 @@ export default function GuarantorManager() {
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         </div>
                     </div>
-                    {perms?.CanAdd && (
-                        <div className="flex items-center gap-2 w-full sm:w-auto mt-3 sm:mt-0">
-                            {selectedIds.size > 0 && perms?.CanDelete && (
-                                <button onClick={handleBulkDelete}
-                                    disabled={saving}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 font-semibold rounded-xl hover:bg-red-100 transition-all text-sm whitespace-nowrap shadow-sm disabled:opacity-50 mr-2"
-                                >
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                    Delete Selected ({selectedIds.size})
-                                </button>
-                            )}
+                    <div className="flex items-center gap-2 w-full sm:w-auto mt-3 sm:mt-0">
+                        {selectedIds.size > 0 && perms?.CanDelete && (
+                            <button onClick={handleBulkDelete}
+                                disabled={saving}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 font-semibold rounded-xl hover:bg-red-100 transition-all text-sm whitespace-nowrap shadow-sm disabled:opacity-50 mr-2"
+                            >
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                Delete Selected ({selectedIds.size})
+                            </button>
+                        )}
+                        {perms?.CanAdd && (
                             <button onClick={openAdd}
                                 className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm">
                                 <Plus className="w-4 h-4" /> Add Guarantor
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 {loading ? (
@@ -251,12 +252,14 @@ export default function GuarantorManager() {
                                     <th className="w-10"></th>
                                     <th className="px-5 py-3.5 text-left font-semibold text-slate-600">Name</th>
                                     <th className="px-5 py-3.5 text-left font-semibold text-slate-600 hidden md:table-cell">Description</th>
-                                    <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Actions</th>
+                                    {(perms?.CanEdit || perms?.CanDelete) && (
+                                        <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Actions</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {paginated.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-400">No guarantors found.</td></tr>
+                                    <tr><td colSpan={(perms?.CanEdit || perms?.CanDelete) ? 5 : 4} className="px-5 py-10 text-center text-slate-400">No guarantors found.</td></tr>
                                 ) : paginated.map((d) => (
                                     <React.Fragment key={d.id}>
                                         <tr className={`hover:bg-slate-50 transition-colors group cursor-pointer ${expandedRow === d.id ? 'bg-primary/5' : ''}`} onClick={(e) => handleRowExpand(d.id!, e)}>
@@ -275,24 +278,26 @@ export default function GuarantorManager() {
                                             </td>
                                             <td className="px-5 py-3.5 font-semibold text-slate-800">{d.Name}</td>
                                             <td className="px-5 py-3.5 text-slate-500 hidden md:table-cell max-w-xs truncate">{d.Description || '—'}</td>
-                                            <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                    {perms?.CanEdit && (
-                                                        <button onClick={() => openEdit(d)}
-                                                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
-                                                            title="Edit Guarantor">
-                                                            <Pencil className="w-4 h-4" />
-                                                        </button>
-                                                    )}
-                                                    {perms?.CanDelete && (
-                                                        <button onClick={() => setDeleteConfirm(d)}
-                                                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                                                            title="Delete Guarantor">
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
+                                            {(perms?.CanEdit || perms?.CanDelete) && (
+                                                <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                        {perms?.CanEdit && (
+                                                            <button onClick={() => openEdit(d)}
+                                                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
+                                                                title="Edit Guarantor">
+                                                                <Pencil className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                        {perms?.CanDelete && (
+                                                            <button onClick={() => setDeleteConfirm(d)}
+                                                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                                                title="Delete Guarantor">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            )}
                                         </tr>
                                         {/* Expanded Row Content */}
                                         {expandedRow === d.id && (

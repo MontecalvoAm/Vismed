@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { QuotationRecord, getQuotations, computeTotalQuantity, deleteQuotation } from '@/lib/firestore/quotations';
+import { getGuarantors, GuarantorRecord } from '@/lib/firestore/guarantors';
 import { createAuditLog } from '@/lib/firestore/audit';
 import { useConfirm } from '@/context/ConfirmContext';
 import HistoryFilter from '@/components/history/HistoryFilter';
@@ -20,6 +21,8 @@ export default function HistoryPage() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [minQuantity, setMinQuantity] = useState('');
+    const [guarantorFilter, setGuarantorFilter] = useState('all');
+    const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
 
     const load = async () => {
         setLoading(true);
@@ -30,6 +33,15 @@ export default function HistoryPage() {
             console.error('Error fetching history:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadGuarantors = async () => {
+        try {
+            const data = await getGuarantors();
+            setGuarantors(data);
+        } catch (err) {
+            console.error('Error fetching guarantors:', err);
         }
     };
 
@@ -92,6 +104,7 @@ export default function HistoryPage() {
 
     useEffect(() => {
         load();
+        loadGuarantors();
     }, []);
 
     const filteredData = useMemo(() => {
@@ -131,8 +144,12 @@ export default function HistoryPage() {
             result = result.filter((r) => computeTotalQuantity(r.Items ?? []) >= min);
         }
 
+        if (guarantorFilter !== 'all') {
+            result = result.filter((r) => r.GuarantorName === guarantorFilter);
+        }
+
         return result;
-    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, minQuantity]);
+    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, minQuantity, guarantorFilter]);
 
     // Computed stats
     const completeQuotations = useMemo(
@@ -221,6 +238,9 @@ export default function HistoryPage() {
                     onSearchChange={setSearchTerm}
                     statusFilter={statusFilter}
                     onStatusChange={setStatusFilter}
+                    guarantorFilter={guarantorFilter}
+                    onGuarantorChange={setGuarantorFilter}
+                    availableGuarantors={guarantors.map(g => ({ id: g.id!, Name: g.Name }))}
                     dateFrom={dateFrom}
                     onDateFromChange={setDateFrom}
                     dateTo={dateTo}
