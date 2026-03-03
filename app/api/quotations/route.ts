@@ -1,23 +1,32 @@
 // ============================================================
 //  VisayasMed — API: GET /api/quotations
-//  GET → client Firestore SDK (works without service account)
+//  GET → admin Firestore SDK (server-side)
 //  Fetches all records from T_Quotation ordered by CreatedAt
 // ============================================================
 
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import { NextResponse, NextRequest } from 'next/server';
+import { adminDb } from '@/lib/firebaseAdmin';
+import * as admin from 'firebase-admin';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
+import { errorResponse, successResponse } from '@/lib/errors';
 
 const COL = 'T_Quotation';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        // Rate limiting for API
+        const clientIp = getClientIp(req);
+        const rateLimitResult = checkRateLimit(`api:${clientIp}`, RATE_LIMITS.API);
+        if (!rateLimitResult.success) {
+            return rateLimitResponse(rateLimitResult);
+        }
+
         let snap;
         try {
-            snap = await getDocs(query(collection(db, COL), orderBy('CreatedAt', 'desc')));
+            snap = await adminDb.collection(COL).orderBy('CreatedAt', 'desc').get();
         } catch {
             // Fallback if composite index not ready
-            snap = await getDocs(collection(db, COL));
+            snap = await adminDb.collection(COL).get();
         }
 
         const quotations = snap.docs.map((d) => {
@@ -26,18 +35,18 @@ export async function GET() {
                 id: d.id,
                 ...data,
                 CreatedAt:
-                    data.CreatedAt instanceof Timestamp
+                    data.CreatedAt instanceof admin.firestore.Timestamp
                         ? data.CreatedAt.toDate().toISOString()
                         : data.CreatedAt ?? null,
                 UpdatedAt:
-                    data.UpdatedAt instanceof Timestamp
+                    data.UpdatedAt instanceof admin.firestore.Timestamp
                         ? data.UpdatedAt.toDate().toISOString()
                         : data.UpdatedAt ?? null,
             };
         });
 
-        return NextResponse.json({ success: true, quotations });
-    } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+        return successResponse({ success: true, quotations });
+    } catch (e: unknown) {
+        return errorResponse(e, 'Failed to fetch quotations');
     }
 }

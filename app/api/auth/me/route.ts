@@ -24,7 +24,15 @@ export async function GET(req: NextRequest) {
             decodedToken = await admin.auth().verifyIdToken(token);
         } catch (authErr: any) {
             console.error('Token verification failed:', authErr.message);
-            return NextResponse.json({ authenticated: false, error: 'Session expired. Please log in again.' }, { status: 200 });
+
+            // Check if it's an expired token error
+            const isExpired = authErr.code === 'auth/id-token-expired';
+
+            return NextResponse.json({
+                authenticated: false,
+                error: 'Session expired. Please log in again.',
+                tokenExpired: isExpired
+            }, { status: 200 });
         }
 
         const UserID = decodedToken.uid;

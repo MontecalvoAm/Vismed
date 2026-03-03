@@ -1,18 +1,29 @@
 // ============================================================
 //  VisayasMed — API: POST /api/auth/session
 //  Verifies Firebase ID token and sets Secure HttpOnly cookie
+//  Supports "Remember Me" for extended session duration
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
 
-// Use firebase-admin for server-side token verification
-// Note: firebase-admin credential uses GOOGLE_APPLICATION_CREDENTIALS
-// For local dev we verify token structure via Firebase REST if admin creds unavailable.
-// For production, set up firebase-admin service account.
+// Session durations
+const SESSION_DURATION = {
+    STANDARD: 8 * 60 * 60 * 1000,   // 8 hours (default)
+    REMEMBER_ME: 14 * 24 * 60 * 60 * 1000, // 14 days (remember me)
+};
 
 export async function POST(req: NextRequest) {
     try {
-        const { idToken } = await req.json();
+        // Rate limiting - 5 login attempts per 15 minutes
+        const clientIp = getClientIp(req);
+        const rateLimitResult = checkRateLimit(`login:${clientIp}`, RATE_LIMITS.LOGIN);
+        if (!rateLimitResult.success) {
+            return rateLimitResponse(rateLimitResult);
+        }
+
+        const body = await req.json();
+        const { idToken, rememberMe } = body;
 
         if (!idToken || typeof idToken !== 'string') {
             return NextResponse.json({ error: 'Missing or invalid token.' }, { status: 400 });
@@ -35,18 +46,32 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'User not found.' }, { status: 401 });
         }
 
-        // Set Secure HttpOnly session cookie (8 hour expiry)
-        const expires = new Date(Date.now() + 8 * 60 * 60 * 1000).toUTCString();
-        const response = NextResponse.json({ success: true });
+        // Determine session duration based on "Remember Me"
+        const sessionDuration = rememberMe === true
+            ? SESSION_DURATION.REMEMBER_ME
+            : SESSION_DURATION.STANDARD;
+
+        const expiresAt = new Date(Date.now() + sessionDuration);
+
+        // Set Secure HttpOnly session cookie
+        const response = NextResponse.json({
+            success: true,
+            expiresAt: expiresAt.toISOString(),
+            persistent: rememberMe === true
+        });
+
         response.cookies.set('vm_token', idToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             path: '/',
-            expires: new Date(Date.now() + 8 * 60 * 60 * 1000),
+            expires: expiresAt,
         });
+
         return response;
     } catch (err) {
+        // Log error but don't expose details
+        console.error('[Auth Session] Error:', err);
         return NextResponse.json({ error: 'Server error.' }, { status: 500 });
     }
 }

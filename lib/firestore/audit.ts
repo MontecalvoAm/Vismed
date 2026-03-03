@@ -1,6 +1,6 @@
 // ============================================================
 //  VisayasMed — Firestore: Audit Logs (MT_AuditLog)
-//  Logs tracking changes and entity updates per instructions.
+//  Logs tracking changes, entity updates, and security events
 // ============================================================
 
 import {
@@ -10,18 +10,39 @@ import {
 import { db } from '@/lib/firebase';
 
 export interface AuditLogEntry {
-    Action: string;       // e.g. "UPDATE_TRACKING"
-    Module: string;       // e.g. "Quotation"
+    Action: string;       // e.g. "UPDATE_TRACKING", "LOGIN_SUCCESS", "LOGIN_FAILED"
+    Module: string;       // e.g. "Quotation", "Auth", "Users"
     RecordID: string;
     Description: string;
-    OldValues?: any;
-    NewValues?: any;
-    UserID?: string;      // Optional since client side logic doesn't strictly have ID readily available locally right now
-    CreatedAt?: any;
+    OldValues?: unknown;
+    NewValues?: unknown;
+    UserID?: string;
+    // Security event fields
+    IpAddress?: string;
+    UserAgent?: string;
+    Severity?: 'info' | 'warning' | 'critical';
+    Metadata?: Record<string, unknown>;
+    CreatedAt?: unknown;
 }
+
+// Security event types
+export const SECURITY_EVENTS = {
+    LOGIN_SUCCESS: 'LOGIN_SUCCESS',
+    LOGIN_FAILED: 'LOGIN_FAILED',
+    LOGOUT: 'LOGOUT',
+    SESSION_EXPIRED: 'SESSION_EXPIRED',
+    PERMISSION_DENIED: 'PERMISSION_DENIED',
+    PASSWORD_CHANGE: 'PASSWORD_CHANGE',
+    ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+    SUSPICIOUS_ACTIVITY: 'SUSPICIOUS_ACTIVITY',
+    RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+} as const;
 
 const COL = 'MT_AuditLog';
 
+/**
+ * Create a general audit log entry
+ */
 export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
     try {
         const newDocRef = doc(collection(db, COL));
@@ -35,6 +56,41 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
     }
 }
 
+/**
+ * Log a security event (for server-side use)
+ * Includes IP address and user agent for security tracking
+ */
+export async function logSecurityEvent(params: {
+    action: string;
+    userId?: string;
+    description: string;
+    ipAddress?: string;
+    userAgent?: string;
+    severity?: 'info' | 'warning' | 'critical';
+    metadata?: Record<string, unknown>;
+}): Promise<void> {
+    try {
+        const newDocRef = doc(collection(db, COL));
+        await setDoc(newDocRef, {
+            Action: params.action,
+            Module: 'Security',
+            RecordID: params.userId ?? 'anonymous',
+            Description: params.description,
+            UserID: params.userId,
+            IpAddress: params.ipAddress,
+            UserAgent: params.userAgent,
+            Severity: params.severity ?? 'info',
+            Metadata: params.metadata,
+            CreatedAt: serverTimestamp(),
+        });
+    } catch (err) {
+        console.error('Failed to log security event:', err);
+    }
+}
+
+/**
+ * Get audit logs for a specific record
+ */
 export async function getAuditLogsForRecord(recordId: string): Promise<AuditLogEntry[]> {
     const q = query(
         collection(db, COL),
@@ -52,7 +108,51 @@ export async function getAuditLogsForRecord(recordId: string): Promise<AuditLogE
     logs.sort((a, b) => {
         if (!a.CreatedAt) return 1;
         if (!b.CreatedAt) return -1;
-        return new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime();
+        return new Date(b.CreatedAt as string).getTime() - new Date(a.CreatedAt as string).getTime();
     });
+    return logs;
+}
+
+/**
+ * Get security logs (admin function)
+ */
+export async function getSecurityLogs(options?: {
+    userId?: string;
+    action?: string;
+    limit?: number;
+}): Promise<AuditLogEntry[]> {
+    let q = query(
+        collection(db, COL),
+        where('Module', '==', 'Security')
+    );
+
+    if (options?.userId) {
+        q = query(q, where('UserID', '==', options.userId));
+    }
+    if (options?.action) {
+        q = query(q, where('Action', '==', options.action));
+    }
+
+    const snap = await getDocs(q);
+    let logs = snap.docs.map(d => {
+        const data = d.data();
+        return {
+            ...data,
+            CreatedAt: data.CreatedAt instanceof Timestamp ? data.CreatedAt.toDate().toISOString() : null,
+        } as AuditLogEntry;
+    });
+
+    // Sort by date descending
+    logs.sort((a, b) => {
+        if (!a.CreatedAt) return 1;
+        if (!b.CreatedAt) return -1;
+        return new Date(b.CreatedAt as string).getTime() - new Date(a.CreatedAt as string).getTime();
+    });
+
+    // Apply limit after sorting
+    if (options?.limit && logs.length > options.limit) {
+        logs = logs.slice(0, options.limit);
+    }
+
     return logs;
 }

@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
+import { sanitizeString, isValidEmail, validatePassword, validateRequired, sanitizeObject } from '@/lib/validation';
+import { errorResponse, successResponse, AppError, ValidationError } from '@/lib/errors';
 
 const COL = 'M_User';
 
@@ -10,8 +13,15 @@ const isStrongPassword = (password: string) => {
     return passwordRegex.test(password);
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        // Rate limiting for API
+        const clientIp = getClientIp(req);
+        const rateLimitResult = checkRateLimit(`api:${clientIp}`, RATE_LIMITS.API);
+        if (!rateLimitResult.success) {
+            return rateLimitResponse(rateLimitResult);
+        }
+
         const snap = await adminDb.collection(COL).orderBy('CreatedAt', 'desc').get();
         const users = snap.docs.map((d) => {
             const data = d.data();
@@ -19,60 +29,91 @@ export async function GET() {
             const { Password, ...safeData } = data;
             return { UserID: d.id, ...safeData };
         });
-        return NextResponse.json({ success: true, users });
-    } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+        return successResponse({ success: true, users });
+    } catch (e: unknown) {
+        return errorResponse(e, 'Failed to fetch users');
     }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const { Email, FirstName, LastName, RoleID, IsActive, Password } = body;
-
-        let hashedPassword = '';
-        if (Password) {
-            if (!isStrongPassword(Password)) {
-                return NextResponse.json({ success: false, error: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' }, { status: 400 });
-            }
-            const salt = await bcrypt.genSalt(10);
-            hashedPassword = await bcrypt.hash(Password, salt);
-        } else {
-            return NextResponse.json({ success: false, error: 'Password is required for new users.' }, { status: 400 });
+        // Rate limiting
+        const clientIp = getClientIp(req);
+        const rateLimitResult = checkRateLimit(`api:${clientIp}`, RATE_LIMITS.API);
+        if (!rateLimitResult.success) {
+            return rateLimitResponse(rateLimitResult);
         }
+
+        const body = await req.json();
+
+        // Sanitize string inputs
+        const sanitizedBody = sanitizeObject(body);
+        const { Email, FirstName, LastName, RoleID, IsActive, Password } = sanitizedBody;
+
+        // Validate required fields
+        const requiredCheck = validateRequired(
+            { Email, FirstName, LastName, Password },
+            ['Email', 'FirstName', 'LastName', 'Password']
+        );
+
+        if (!requiredCheck.isValid) {
+            throw new ValidationError(
+                `Missing required fields: ${requiredCheck.missing.join(', ')}`
+            );
+        }
+
+        // Validate email format
+        if (!isValidEmail(Email as string)) {
+            throw new ValidationError('Invalid email format');
+        }
+
+        // Validate password strength
+        if (!isStrongPassword(Password as string)) {
+            throw new ValidationError(
+                'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.'
+            );
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(Password as string, salt);
 
         let firebaseUser;
         try {
             firebaseUser = await adminAuth.createUser({
-                email: Email,
-                password: Password,
+                email: Email as string,
+                password: Password as string,
                 displayName: `${FirstName} ${LastName}`,
-                disabled: !(IsActive !== undefined ? IsActive : true)
+                disabled: !(IsActive !== undefined ? Boolean(IsActive) : true)
             });
-        } catch (authError: any) {
-            return NextResponse.json({ success: false, error: authError.message || 'Failed to create user in Firebase Auth' }, { status: 400 });
+        } catch (authError: unknown) {
+            const errorMessage = authError instanceof Error ? authError.message : 'Failed to create user in Firebase Auth';
+            throw new AppError(errorMessage, 400, 'AUTH_ERROR');
         }
 
         try {
             const newUserRef = adminDb.collection(COL).doc(firebaseUser.uid);
             await newUserRef.set({
-                Email: Email || '',
-                FirstName: FirstName || '',
-                LastName: LastName || '',
+                Email: sanitizeString(Email as string),
+                FirstName: sanitizeString(FirstName as string),
+                LastName: sanitizeString(LastName as string),
                 RoleID: RoleID || 'staff',
-                IsActive: IsActive !== undefined ? IsActive : true,
+                IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
                 Password: hashedPassword,
                 CreatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 UpdatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            return NextResponse.json({ success: true, UserID: newUserRef.id });
-        } catch (dbError: any) {
+            return successResponse({ success: true, UserID: newUserRef.id }, 201);
+        } catch (dbError: unknown) {
             // Rollback Firebase Auth user if Firestore fails
             await adminAuth.deleteUser(firebaseUser.uid);
-            return NextResponse.json({ success: false, error: dbError.message || 'Failed to save user in database' }, { status: 500 });
+            throw new AppError('Failed to save user in database', 500, 'DB_ERROR');
         }
-    } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    } catch (e: unknown) {
+        if (e instanceof AppError) {
+            return errorResponse(e);
+        }
+        return errorResponse(e, 'Failed to create user');
     }
 }

@@ -12,6 +12,7 @@ export default function LoginForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -27,7 +28,7 @@ export default function LoginForm() {
         setLoading(true);
 
         try {
-            await loginWithFirebase(email, password);
+            await loginWithFirebase(email, password, rememberMe);
             await refreshUser();
             router.push('/quotation');
         } catch (err: any) {
@@ -93,6 +94,19 @@ export default function LoginForm() {
                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                 </div>
+            </div>
+
+            <div className="flex items-center">
+                <input
+                    id="remember-me"
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-neutral-700 bg-neutral-900/50 text-accent focus:ring-accent focus:ring-offset-neutral-900"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <label htmlFor="remember-me" className="ml-2 text-sm text-neutral-400">
+                    Remember me for 14 days
+                </label>
             </div>
 
             {error && (

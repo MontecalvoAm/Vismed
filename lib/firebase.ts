@@ -5,7 +5,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -21,6 +21,12 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// Set persistence to LOCAL so session survives browser restart
+// This stores the auth state in localStorage (persist across sessions)
+if (typeof window !== 'undefined') {
+    setPersistence(auth, browserLocalPersistence);
+}
 
 /**
  * Generates a UUID v7 string (time-sortable).
