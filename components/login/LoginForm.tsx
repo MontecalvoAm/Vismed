@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginWithFirebase } from '@/lib/auth';
 import { User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
@@ -8,12 +8,18 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function LoginForm() {
     const router = useRouter();
-    const { refreshUser } = useAuth();
+    const { user, loading: authLoading, refreshUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!authLoading && user) {
+            router.push('/quotation');
+        }
+    }, [user, authLoading, router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

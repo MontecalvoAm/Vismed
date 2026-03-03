@@ -7,6 +7,11 @@ import bcrypt from 'bcryptjs';
 const COL = 'M_User';
 const MODULE_NAME = 'Users';
 
+const isStrongPassword = (password: string) => {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+    return passwordRegex.test(password);
+};
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { user, error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
     if (error) return error;
@@ -31,6 +36,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         if (IsActive !== undefined) firebaseUpdateData.disabled = !IsActive;
 
         if (Password && Password.trim() !== '') {
+            if (!isStrongPassword(Password)) {
+                return NextResponse.json({ success: false, error: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' }, { status: 400 });
+            }
             const salt = await bcrypt.genSalt(10);
             updateData.Password = await bcrypt.hash(Password, salt);
             firebaseUpdateData.password = Password;

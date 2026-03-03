@@ -67,6 +67,11 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
 
     if (!isOpen) return null;
 
+    const isStrongPassword = (password: string) => {
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+        return passwordRegex.test(password);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -85,6 +90,9 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
             };
 
             if (password) {
+                if (!isStrongPassword(password)) {
+                    throw new Error('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+                }
                 payload.Password = password;
             } else if (!user) {
                 throw new Error('Password is required for new users.');

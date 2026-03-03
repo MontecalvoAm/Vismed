@@ -5,6 +5,11 @@ import bcrypt from 'bcryptjs';
 
 const COL = 'M_User';
 
+const isStrongPassword = (password: string) => {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+    return passwordRegex.test(password);
+};
+
 export async function GET() {
     try {
         const snap = await adminDb.collection(COL).orderBy('CreatedAt', 'desc').get();
@@ -27,15 +32,20 @@ export async function POST(req: Request) {
 
         let hashedPassword = '';
         if (Password) {
+            if (!isStrongPassword(Password)) {
+                return NextResponse.json({ success: false, error: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' }, { status: 400 });
+            }
             const salt = await bcrypt.genSalt(10);
             hashedPassword = await bcrypt.hash(Password, salt);
+        } else {
+            return NextResponse.json({ success: false, error: 'Password is required for new users.' }, { status: 400 });
         }
 
         let firebaseUser;
         try {
             firebaseUser = await adminAuth.createUser({
                 email: Email,
-                password: Password || 'VisayasMed@123', // Provide a default or require it
+                password: Password,
                 displayName: `${FirstName} ${LastName}`,
                 disabled: !(IsActive !== undefined ? IsActive : true)
             });
