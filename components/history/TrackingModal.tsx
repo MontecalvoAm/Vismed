@@ -6,6 +6,7 @@ import { createAuditLog } from '@/lib/firestore/audit';
 import { useConfirm } from '@/context/ConfirmContext';
 import { X, Save, Clock, Package, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
+import { isPharmacyDepartment, determineStatusFromTracking } from '@/lib/utils/quotationStatus';
 
 interface TrackingModalProps {
     isOpen: boolean;
@@ -73,16 +74,12 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
         if (!quotation?.id) return;
         setIsSaving(true);
         try {
-            const totalQty = items.reduce((sum, item) => sum + item.Quantity, 0);
-            const totalUsed = items.reduce((sum, item) => sum + (item.Used || 0), 0);
+            // Determine status based on tracking progress with pharmacy auto-complete logic
+            const calculatedStatus = determineStatusFromTracking(items);
 
             let updatedStatus = quotation.Status;
-            if (totalQty > 0) {
-                if (totalUsed === totalQty && quotation.Status !== 'Completed') {
-                    updatedStatus = 'Completed';
-                } else if (totalUsed < totalQty && quotation.Status === 'Completed') {
-                    updatedStatus = 'Incomplete';
-                }
+            if (calculatedStatus !== quotation.Status) {
+                updatedStatus = calculatedStatus;
             }
 
             const updatePayload: any = { Items: items };
@@ -197,7 +194,9 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                             const originalIndex = initialItemIndex != null ? initialItemIndex : localIndex;
                             const used = item.Used || 0;
                             const max = item.Quantity;
-                            const isCompleted = used === max;
+                            // Check if this is a pharmacy item with qty <= 1 (auto-completed) or fully used
+                            const isPharmacy = isPharmacyDepartment(item.Department || '');
+                            const isCompleted = (isPharmacy && max <= 1) || used === max;
                             const isSession = item.Unit?.toLowerCase().includes('session');
 
                             const isHighlighted = initialItemIndex === originalIndex;

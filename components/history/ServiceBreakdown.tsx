@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Activity, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import { QuotationRecord } from '@/lib/firestore/quotations';
+import { isItemAutoComplete } from '@/lib/utils/quotationStatus';
 
 interface ServiceBreakdownProps {
     quotation: QuotationRecord;
@@ -53,7 +54,8 @@ export default function ServiceBreakdown({ quotation, onTrackItem }: ServiceBrea
                             const originalIdx = (currentPage - 1) * rowsPerPage + localIdx;
                             const used = item.Used || 0;
                             const total = item.Quantity || 0;
-                            const isFullyUsed = total > 0 && used >= total;
+                            // Use isItemAutoComplete for pharmacy items with qty <= 1
+                            const isFullyUsed = isItemAutoComplete(item);
 
                             return (
                                 <tr key={originalIdx} className="hover:bg-gray-50/50">

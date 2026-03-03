@@ -5,6 +5,7 @@ import { Download, Edit3, Loader2, FileText, Printer } from 'lucide-react';
 import { useConfirm } from '@/context/ConfirmContext';
 import PdfGeneratorRenderer from '../history/PdfGeneratorRenderer';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
+import { determineSessionType, determineInitialStatus } from '@/lib/utils/quotationStatus';
 
 export default function QuotationSummary({
     customer, items, onBack, preparedBy, isEditing, editId
@@ -22,9 +23,11 @@ export default function QuotationSummary({
 
     const grandTotal = items.reduce((sum, i) => sum + i.subtotal, 0);
 
-    const totalQuantity = items.reduce((sum, i) => sum + (Number(i.sessions) || 1), 0);
-    const sessionType = (totalQuantity > 1 ? 'Per-session' : 'One-time') as 'Per-session' | 'One-time';
-    const finalStatus = sessionType === 'One-time' ? 'Completed' : 'Incomplete';
+    // Determine session type and initial status using utility functions
+    // Status is only auto-completed for Pharmacy items with quantity <= 1
+    const itemsForStatus = items.map(i => ({ Department: i.deptName, Quantity: i.sessions }));
+    const sessionType = determineSessionType(itemsForStatus);
+    const finalStatus = determineInitialStatus(itemsForStatus);
 
     // Prepare standard record format for the renderer
     const recordFormat = {

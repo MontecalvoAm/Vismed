@@ -5,21 +5,33 @@
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, Shield, LayoutGrid, ChevronLeft, ChevronRight, ChevronDown, ChevronRightIcon, FileText } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, Shield, LayoutGrid, ChevronLeft, ChevronRight, ChevronDown, ChevronRightIcon, FileText, FileSearch, Activity, User, Edit3 } from 'lucide-react';
 import { getGuarantors, addGuarantor, updateGuarantor, deleteGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
-import { getQuotationsByGuarantor, QuotationRecord } from '@/lib/firestore/quotations';
+import { getQuotationsByGuarantor, QuotationRecord, updateQuotationStatus, deleteQuotation } from '@/lib/firestore/quotations';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/context/ConfirmContext';
 import FormModal from '@/components/manage/FormModal';
 import AccessDenied from '@/components/AccessDenied';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
+import TrackingModal from '@/components/history/TrackingModal';
+import PdfViewerModal from '@/components/history/PdfViewerModal';
+import ServiceBreakdown from '@/components/history/ServiceBreakdown';
 
 const EMPTY_FORM = { Name: '', Description: '' };
 
+const statusStyles: Record<string, string> = {
+    'Incomplete': 'bg-blue-100 text-blue-700',
+    'Waiting for Approval': 'bg-amber-100 text-amber-700',
+    'Completed': 'bg-green-100 text-green-700',
+};
+
 export default function GuarantorManager() {
     const { user } = useAuth();
-    const { alert } = useConfirm();
+    const { alert, confirm } = useConfirm();
     const perms = user?.Permissions?.Guarantors;
+    const historyPerms = user?.Permissions?.History; // For quotation actions in expanded rows
+    const router = useRouter();
 
     const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -40,6 +52,18 @@ export default function GuarantorManager() {
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
     const [expandedLoading, setExpandedLoading] = useState(false);
     const [expandedData, setExpandedData] = useState<QuotationRecord[]>([]);
+
+    // For quotation actions in expanded rows
+    const [trackingQuotation, setTrackingQuotation] = useState<QuotationRecord | null>(null);
+    const [trackingItemIndex, setTrackingItemIndex] = useState<number | null>(null);
+    const [viewingQuotation, setViewingQuotation] = useState<QuotationRecord | null>(null);
+    const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+    const [expandedQuotationRows, setExpandedQuotationRows] = useState<Set<string>>(new Set());
+
+    // For quotation search and pagination within expanded guarantor
+    const [quotationSearchTerm, setQuotationSearchTerm] = useState('');
+    const [quotationCurrentPage, setQuotationCurrentPage] = useState(1);
+    const [quotationRowsPerPage, setQuotationRowsPerPage] = useState(5);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -163,6 +187,10 @@ export default function GuarantorManager() {
         }
         setExpandedRow(id);
         setExpandedLoading(true);
+        // Reset quotation search and pagination when switching guarantors
+        setQuotationSearchTerm('');
+        setQuotationCurrentPage(1);
+        setExpandedQuotationRows(new Set());
         try {
             const data = await getQuotationsByGuarantor(id);
             setExpandedData(data);
@@ -183,6 +211,68 @@ export default function GuarantorManager() {
             }
         } finally {
             setExpandedLoading(false);
+        }
+    };
+
+    // Toggle quotation row expansion for ServiceBreakdown
+    const toggleQuotationRowExpand = (id: string) => {
+        setExpandedQuotationRows(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    // Handle status change for quotations in expanded rows
+    const handleStatusChange = async (id: string, newStatus: string) => {
+        setStatusUpdatingId(id);
+        try {
+            await updateQuotationStatus(id, newStatus as QuotationRecord['Status']);
+            // Refresh expanded data
+            if (expandedRow) {
+                const data = await getQuotationsByGuarantor(expandedRow);
+                setExpandedData(data);
+            }
+            setFeedback({ isOpen: true, type: 'success', title: 'Updated', message: 'Status updated successfully.' });
+        } catch (error) {
+            console.error('Failed to update status:', error);
+            await alert({
+                title: 'Update Failed',
+                message: 'Failed to update status',
+                variant: 'danger'
+            });
+        } finally {
+            setStatusUpdatingId(null);
+        }
+    };
+
+    // Handle delete quotation from expanded rows
+    const handleDeleteQuotation = async (q: QuotationRecord) => {
+        if (!q.id) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Quotation',
+            message: `Are you sure you want to delete quotation ${q.DocumentNo || q.id}? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete'
+        });
+        if (!isConfirmed) return;
+
+        try {
+            await deleteQuotation(q.id);
+            // Refresh expanded data
+            if (expandedRow) {
+                const data = await getQuotationsByGuarantor(expandedRow);
+                setExpandedData(data);
+            }
+            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Quotation deleted successfully.' });
+        } catch (error) {
+            console.error('Failed to delete quotation:', error);
+            await alert({
+                title: 'Delete Failed',
+                message: 'Failed to delete quotation',
+                variant: 'danger'
+            });
         }
     };
 
@@ -321,41 +411,244 @@ export default function GuarantorManager() {
                                             <tr className="bg-slate-50/50">
                                                 <td colSpan={5} className="p-0 border-b border-slate-200">
                                                     <div className="py-4 px-8 md:px-14">
-                                                        <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                                                            <FileText className="w-4 h-4 text-primary" /> Connected Quotations
-                                                        </h4>
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                                                <FileText className="w-4 h-4 text-primary" /> Connected Quotations
+                                                            </h4>
+                                                            {!expandedLoading && expandedData.length > 0 && (
+                                                                <div className="relative w-full sm:max-w-xs">
+                                                                    <input
+                                                                        type="search"
+                                                                        placeholder="Search quotations..."
+                                                                        className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
+                                                                        value={quotationSearchTerm}
+                                                                        onChange={(e) => {
+                                                                            setQuotationSearchTerm(e.target.value);
+                                                                            setQuotationCurrentPage(1);
+                                                                        }}
+                                                                    />
+                                                                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         {expandedLoading ? (
                                                             <div className="flex items-center gap-2 text-xs text-slate-400 py-3"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching records...</div>
                                                         ) : expandedData.length === 0 ? (
                                                             <p className="text-xs text-slate-400 italic py-2">No active records for this guarantor.</p>
-                                                        ) : (
-                                                            <div className="bg-white border text-xs border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                                                                <table className="min-w-full divide-y divide-slate-100">
-                                                                    <thead className="bg-slate-50 border-b border-slate-200">
-                                                                        <tr>
-                                                                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Doc No.</th>
-                                                                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Patient</th>
-                                                                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Date Issued</th>
-                                                                            <th className="px-4 py-2.5 text-center font-semibold text-slate-600">Status</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-slate-100">
-                                                                        {expandedData.map(q => (
-                                                                            <tr key={q.id} className="hover:bg-slate-50 transition-colors">
-                                                                                <td className="px-4 py-2.5 font-mono text-slate-600">{q.DocumentNo || q.id}</td>
-                                                                                <td className="px-4 py-2.5 font-medium text-slate-800">{q.CustomerName}</td>
-                                                                                <td className="px-4 py-2.5 text-slate-500">{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '—'}</td>
-                                                                                <td className="px-4 py-2.5 text-center">
-                                                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${q.Status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                                                        {q.Status || 'Incomplete'}
-                                                                                    </span>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        )}
+                                                        ) : (() => {
+                                                            // Filter quotations based on search term
+                                                            const filteredQuotations = expandedData.filter(q =>
+                                                                (q.DocumentNo || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                (q.CustomerName || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                (q.CustomerEmail || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                (q.CustomerPhone || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                (q.PreparedBy || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                (q.Status || '').toLowerCase().includes(quotationSearchTerm.toLowerCase())
+                                                            );
+                                                            const quotationTotalPages = Math.max(1, Math.ceil(filteredQuotations.length / quotationRowsPerPage));
+                                                            const paginatedQuotations = filteredQuotations.slice(
+                                                                (quotationCurrentPage - 1) * quotationRowsPerPage,
+                                                                quotationCurrentPage * quotationRowsPerPage
+                                                            );
+
+                                                            return (
+                                                                <div className="space-y-3">
+                                                                    <div className="bg-white border text-xs border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                                                                        <table className="min-w-full divide-y divide-slate-100">
+                                                                            <thead className="bg-slate-50 border-b border-slate-200">
+                                                                                <tr>
+                                                                                    <th className="px-2 py-2.5 w-8"></th>
+                                                                                    <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Doc No.</th>
+                                                                                    <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Patient</th>
+                                                                                    <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Date</th>
+                                                                                    <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Prepared By</th>
+                                                                                    <th className="px-4 py-2.5 text-right font-semibold text-slate-600">Total</th>
+                                                                                    <th className="px-4 py-2.5 text-center font-semibold text-slate-600">Status</th>
+                                                                                    {(historyPerms?.CanEdit || historyPerms?.CanDelete) && (
+                                                                                        <th className="px-4 py-2.5 text-center font-semibold text-slate-600">Actions</th>
+                                                                                    )}
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody className="divide-y divide-slate-100">
+                                                                                {paginatedQuotations.length === 0 ? (
+                                                                                    <tr>
+                                                                                        <td colSpan={(historyPerms?.CanEdit || historyPerms?.CanDelete) ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
+                                                                                            No quotations match your search.
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                ) : paginatedQuotations.map(q => {
+                                                                                    const isQuotationExpanded = q.id ? expandedQuotationRows.has(q.id) : false;
+                                                                                    return (
+                                                                                        <React.Fragment key={q.id}>
+                                                                                            <tr
+                                                                                                onClick={() => q.id && toggleQuotationRowExpand(q.id)}
+                                                                                                className={`hover:bg-primary/5 transition-colors cursor-pointer ${isQuotationExpanded ? 'bg-primary/5' : ''}`}
+                                                                                            >
+                                                                                                <td className="px-2 py-2.5 text-center">
+                                                                                                    <button
+                                                                                                        onClick={(e) => { e.stopPropagation(); q.id && toggleQuotationRowExpand(q.id); }}
+                                                                                                        className="p-1 rounded-md hover:bg-black/5 text-slate-500 transition-colors"
+                                                                                                    >
+                                                                                                        {isQuotationExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
+                                                                                                    </button>
+                                                                                                </td>
+                                                                                                <td className="px-4 py-2.5 font-mono text-slate-600">{q.DocumentNo || q.id}</td>
+                                                                                                <td className="px-4 py-2.5">
+                                                                                                    <div className="flex items-center gap-2">
+                                                                                                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold shrink-0">
+                                                                                                            {(q.CustomerName ?? '?').charAt(0)}
+                                                                                                        </div>
+                                                                                                        <div>
+                                                                                                            <div className="font-medium text-slate-800">{q.CustomerName}</div>
+                                                                                                            <div className="text-[10px] text-slate-400">{q.CustomerEmail || q.CustomerPhone}</div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td className="px-4 py-2.5 text-slate-500">
+                                                                                                    {q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                                                                                </td>
+                                                                                                <td className="px-4 py-2.5">
+                                                                                                    <div className="flex items-center gap-1 text-slate-600">
+                                                                                                        <User className="w-3 h-3" />
+                                                                                                        {q.PreparedBy || <span className="italic text-slate-300">—</span>}
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
+                                                                                                    ₱{(q.Total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                                                                                </td>
+                                                                                                <td className="px-4 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                                                                                    <div className="relative inline-block">
+                                                                                                        <select
+                                                                                                            value={q.Status || 'Incomplete'}
+                                                                                                            onChange={(e) => handleStatusChange(q.id!, e.target.value)}
+                                                                                                            disabled={statusUpdatingId === q.id || !historyPerms?.CanEdit}
+                                                                                                            className={`appearance-none bg-transparent border-none focus:ring-2 focus:ring-primary/20 rounded-full pl-3 pr-7 py-1 text-[10px] font-bold tracking-wider ${historyPerms?.CanEdit ? 'cursor-pointer' : 'cursor-default opacity-75'} ${statusStyles[q.Status || 'Incomplete'] || 'bg-gray-100 text-gray-700'} ${statusUpdatingId === q.id ? 'opacity-50' : ''}`}
+                                                                                                            style={{ textAlignLast: 'center' }}
+                                                                                                        >
+                                                                                                            <option value="Incomplete" className="text-gray-800 font-medium bg-white">Incomplete</option>
+                                                                                                            <option value="Waiting for Approval" className="text-gray-800 font-medium bg-white">Waiting for Approval</option>
+                                                                                                            <option value="Completed" className="text-gray-800 font-medium bg-white">Completed</option>
+                                                                                                        </select>
+                                                                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                                                                                            <Edit3 className="w-2.5 h-2.5 text-current opacity-70" />
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                {(historyPerms?.CanEdit || historyPerms?.CanDelete) && (
+                                                                                                    <td className="px-4 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                                                            <button
+                                                                                                                onClick={() => setViewingQuotation(q)}
+                                                                                                                title="View & Download PDF"
+                                                                                                                className="p-1.5 rounded-lg text-rose-500 hover:text-white hover:bg-rose-500 transition-all shadow-sm border border-slate-200 bg-white"
+                                                                                                            >
+                                                                                                                <FileSearch className="w-3.5 h-3.5" />
+                                                                                                            </button>
+                                                                                                            {historyPerms?.CanEdit && (
+                                                                                                                <button
+                                                                                                                    onClick={() => router.push('/history/edit/' + q.id)}
+                                                                                                                    title="Edit Quotation"
+                                                                                                                    className="p-1.5 rounded-lg text-primary hover:text-white hover:bg-primary transition-all shadow-sm border border-slate-200 bg-white"
+                                                                                                                >
+                                                                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                                                                </button>
+                                                                                                            )}
+                                                                                                            {historyPerms?.CanDelete && (
+                                                                                                                <button
+                                                                                                                    onClick={() => handleDeleteQuotation(q)}
+                                                                                                                    title="Delete Quotation"
+                                                                                                                    className="p-1.5 rounded-lg text-red-500 hover:text-white hover:bg-red-500 transition-all shadow-sm border border-slate-200 bg-white"
+                                                                                                                >
+                                                                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                                                                </button>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                )}
+                                                                                            </tr>
+                                                                                            {/* Service Breakdown Row - Only shown when expanded */}
+                                                                                            {isQuotationExpanded && (
+                                                                                                <tr className="bg-slate-100/50">
+                                                                                                    <td colSpan={(historyPerms?.CanEdit || historyPerms?.CanDelete) ? 8 : 7} className="px-0 py-0 border-b border-slate-100">
+                                                                                                        <div className="px-10 py-4">
+                                                                                                            <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                                                                                                <Activity className="w-3 h-3" />
+                                                                                                                Service Breakdown
+                                                                                                            </h5>
+                                                                                                            {q.Items && q.Items.length > 0 ? (
+                                                                                                                <ServiceBreakdown
+                                                                                                                    quotation={q}
+                                                                                                                    onTrackItem={(quotation, idx) => {
+                                                                                                                        setTrackingQuotation(quotation);
+                                                                                                                        setTrackingItemIndex(idx);
+                                                                                                                    }}
+                                                                                                                />
+                                                                                                            ) : (
+                                                                                                                <p className="text-xs text-slate-400 italic">No items detailed in this quotation.</p>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            )}
+                                                                                        </React.Fragment>
+                                                                                    );
+                                                                                })}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+
+                                                                    {/* Quotation Pagination */}
+                                                                    {filteredQuotations.length > quotationRowsPerPage && (
+                                                                        <div className="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-white rounded-b-lg">
+                                                                            <div className="flex flex-col sm:flex-row items-center gap-4">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-slate-500">Show</span>
+                                                                                    <select
+                                                                                        value={quotationRowsPerPage}
+                                                                                        onChange={(e) => {
+                                                                                            setQuotationRowsPerPage(Number(e.target.value));
+                                                                                            setQuotationCurrentPage(1);
+                                                                                        }}
+                                                                                        className="border border-slate-300 rounded text-xs py-1 px-1.5 focus:ring-primary focus:border-primary outline-none bg-white"
+                                                                                    >
+                                                                                        <option value={5}>5</option>
+                                                                                        <option value={10}>10</option>
+                                                                                        <option value={20}>20</option>
+                                                                                        <option value={50}>50</option>
+                                                                                    </select>
+                                                                                    <span className="text-slate-500">entries</span>
+                                                                                </div>
+                                                                                <span className="text-slate-500">
+                                                                                    Showing {filteredQuotations.length === 0 ? 0 : (quotationCurrentPage - 1) * quotationRowsPerPage + 1} to {Math.min(quotationCurrentPage * quotationRowsPerPage, filteredQuotations.length)} of {filteredQuotations.length} entries
+                                                                                </span>
+                                                                            </div>
+
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button
+                                                                                    onClick={() => setQuotationCurrentPage(p => Math.max(1, p - 1))}
+                                                                                    disabled={quotationCurrentPage === 1}
+                                                                                    className="p-1 rounded border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                                                                >
+                                                                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                                <span className="px-2 py-0.5 font-medium text-slate-700">
+                                                                                    Page {quotationCurrentPage} of {quotationTotalPages}
+                                                                                </span>
+                                                                                <button
+                                                                                    onClick={() => setQuotationCurrentPage(p => Math.min(quotationTotalPages, p + 1))}
+                                                                                    disabled={quotationCurrentPage === quotationTotalPages}
+                                                                                    className="p-1 rounded border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                                                                >
+                                                                                    <ChevronRight className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -460,6 +753,28 @@ export default function GuarantorManager() {
                 title={feedback.title}
                 message={feedback.message}
                 onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
+            />
+
+            {/* Tracking Modal for Service Breakdown */}
+            <TrackingModal
+                isOpen={!!trackingQuotation}
+                onClose={() => { setTrackingQuotation(null); setTrackingItemIndex(null); }}
+                quotation={trackingQuotation}
+                initialItemIndex={trackingItemIndex}
+                onSaveSuccess={async () => {
+                    // Refresh expanded data after tracking save
+                    if (expandedRow) {
+                        const data = await getQuotationsByGuarantor(expandedRow);
+                        setExpandedData(data);
+                    }
+                }}
+            />
+
+            {/* PDF Viewer Modal */}
+            <PdfViewerModal
+                isOpen={!!viewingQuotation}
+                onClose={() => setViewingQuotation(null)}
+                quotation={viewingQuotation}
             />
         </div>
     );
