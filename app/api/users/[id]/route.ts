@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/auth/serverAuth';
-import { invalidatePermCache } from '@/app/api/auth/me/route';
+import { invalidatePermCache } from '@/lib/permCache';
 import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
+
 
 const COL = 'M_User';
 const MODULE_NAME = 'Users';
@@ -81,16 +82,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     try {
         const resolvedParams = await params;
 
-        // 1. Delete from Firebase Auth
+        // 1. Disable Firebase Auth account (soft-delete — do not permanently delete)
         try {
-            await adminAuth.deleteUser(resolvedParams.id);
+            await adminAuth.updateUser(resolvedParams.id, { disabled: true });
         } catch (authError: any) {
-            console.error(`Failed to delete Firebase Auth user: ${authError.message}`);
-            // Proceed anyway to delete from Firestore
+            console.error(`Failed to disable Firebase Auth user: ${authError.message}`);
+            // Proceed anyway to update Firestore
         }
 
-        // 2. Delete from Firestore
-        await adminDb.collection(COL).doc(resolvedParams.id).delete();
+        // 2. Soft-delete in Firestore: mark as deleted and inactive
+        await adminDb.collection(COL).doc(resolvedParams.id).update({
+            IsDeleted: true,
+            IsActive: false,
+            UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
 
         // 3. Evict cache so the deleted user can no longer use a cached permission set
         invalidatePermCache(resolvedParams.id);
@@ -100,3 +105,4 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }
 }
+

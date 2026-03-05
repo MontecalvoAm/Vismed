@@ -45,7 +45,8 @@ export interface QuotationRecord {
     Subtotal: number;
     Vat: number;
     Total: number;
-    Status: string; // Dynamic status; typical defaults: 'Incomplete', 'Completed', 'Waiting for Approval'
+    Status: string;
+    IsDeleted?: boolean;
     CreatedAt?: any;
     UpdatedAt?: any;
 }
@@ -63,6 +64,20 @@ export function computeUsedQuantity(items: QuotationItem[]): number {
     return items.reduce((sum, i) => sum + (i.Used || 0), 0);
 }
 
+// ── Timestamp helper ──────────────────────────────────────────
+function mapTimestamps(data: any, id: string): QuotationRecord {
+    return {
+        id,
+        ...data,
+        CreatedAt: data.CreatedAt instanceof Timestamp
+            ? data.CreatedAt.toDate().toISOString()
+            : data.CreatedAt ?? null,
+        UpdatedAt: data.UpdatedAt instanceof Timestamp
+            ? data.UpdatedAt.toDate().toISOString()
+            : data.UpdatedAt ?? null,
+    } as QuotationRecord;
+}
+
 // ── CRUD functions ────────────────────────────────────────────
 
 export async function addQuotation(
@@ -71,6 +86,7 @@ export async function addQuotation(
     const newDocRef = doc(collection(db, COL));
     await setDoc(newDocRef, {
         ...data,
+        IsDeleted: false,
         CreatedAt: serverTimestamp(),
         UpdatedAt: serverTimestamp(),
     });
@@ -80,60 +96,35 @@ export async function addQuotation(
 export async function getQuotations(): Promise<QuotationRecord[]> {
     const q = query(collection(db, COL), orderBy('CreatedAt', 'desc'));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-        const data = d.data();
-        let formattedDate: string | null = null;
-        if (data.CreatedAt instanceof Timestamp) {
-            formattedDate = data.CreatedAt.toDate().toISOString();
-        }
-        let formattedUpdatedDate: string | null = null;
-        if (data.UpdatedAt instanceof Timestamp) {
-            formattedUpdatedDate = data.UpdatedAt.toDate().toISOString();
-        }
-        return {
-            id: d.id,
-            ...data,
-            CreatedAt: formattedDate,
-            UpdatedAt: formattedUpdatedDate,
-        } as QuotationRecord;
-    });
+    return snap.docs
+        .map((d) => mapTimestamps(d.data(), d.id))
+        .filter((q) => q.IsDeleted !== true);
+}
+
+export async function getArchivedQuotations(): Promise<QuotationRecord[]> {
+    const snap = await getDocs(collection(db, COL));
+    return snap.docs
+        .map((d) => mapTimestamps(d.data(), d.id))
+        .filter((q) => q.IsDeleted === true)
+        .sort((a, b) => {
+            if (!a.CreatedAt) return 1;
+            if (!b.CreatedAt) return -1;
+            return new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime();
+        });
 }
 
 export async function getQuotationsByGuarantor(guarantorId: string): Promise<QuotationRecord[]> {
     const q = query(collection(db, COL), where('GuarantorId', '==', guarantorId), orderBy('CreatedAt', 'desc'));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-        const data = d.data();
-        let formattedDate: string | null = null;
-        if (data.CreatedAt instanceof Timestamp) {
-            formattedDate = data.CreatedAt.toDate().toISOString();
-        }
-        let formattedUpdatedDate: string | null = null;
-        if (data.UpdatedAt instanceof Timestamp) {
-            formattedUpdatedDate = data.UpdatedAt.toDate().toISOString();
-        }
-        return {
-            id: d.id,
-            ...data,
-            CreatedAt: formattedDate,
-            UpdatedAt: formattedUpdatedDate,
-        } as QuotationRecord;
-    });
+    return snap.docs
+        .map((d) => mapTimestamps(d.data(), d.id))
+        .filter((q) => q.IsDeleted !== true);
 }
 
 export async function getQuotationById(id: string): Promise<QuotationRecord | null> {
     const snap = await getDoc(doc(db, COL, id));
     if (!snap.exists()) return null;
-    const data = snap.data();
-    let formattedDate: string | null = null;
-    if (data.CreatedAt instanceof Timestamp) {
-        formattedDate = data.CreatedAt.toDate().toISOString();
-    }
-    let formattedUpdatedDate: string | null = null;
-    if (data.UpdatedAt instanceof Timestamp) {
-        formattedUpdatedDate = data.UpdatedAt.toDate().toISOString();
-    }
-    return { id: snap.id, ...data, CreatedAt: formattedDate, UpdatedAt: formattedUpdatedDate } as QuotationRecord;
+    return mapTimestamps(snap.data(), snap.id);
 }
 
 export async function updateQuotationStatus(
@@ -156,6 +147,10 @@ export async function updateQuotation(
     });
 }
 
+// Soft-delete: set IsDeleted = true
 export async function deleteQuotation(id: string): Promise<void> {
-    await deleteDoc(doc(db, COL, id));
+    await updateDoc(doc(db, COL, id), {
+        IsDeleted: true,
+        UpdatedAt: serverTimestamp(),
+    });
 }

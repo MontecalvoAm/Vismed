@@ -14,6 +14,7 @@ export interface UserRecord {
     LastName: string;
     RoleID: string;
     IsActive: boolean;
+    IsDeleted?: boolean;
     CreatedAt?: any;
     UpdatedAt?: any;
     UpdatedBy?: string;
@@ -29,7 +30,16 @@ export async function getUserRecord(UserID: string): Promise<UserRecord | null> 
 
 export async function getAllUsers(): Promise<UserRecord[]> {
     const snap = await getDocs(query(collection(db, COL)));
-    return snap.docs.map((d) => ({ UserID: d.id, ...d.data() } as UserRecord));
+    return snap.docs
+        .map((d) => ({ UserID: d.id, ...d.data() } as UserRecord))
+        .filter((u) => u.IsDeleted !== true);
+}
+
+export async function getArchivedUsers(): Promise<UserRecord[]> {
+    const snap = await getDocs(query(collection(db, COL)));
+    return snap.docs
+        .map((d) => ({ UserID: d.id, ...d.data() } as UserRecord))
+        .filter((u) => u.IsDeleted === true);
 }
 
 export async function updateUserRole(

@@ -4,7 +4,7 @@
 // ============================================================
 
 import {
-    collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
+    collection, doc, getDoc, getDocs,
     serverTimestamp, query, orderBy, Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,6 +15,7 @@ export interface GuarantorRecord {
     id?: string;          // Firestore document ID (runtime only)
     Name: string;
     Description?: string;
+    IsDeleted?: boolean;
     CreatedAt?: any;
     UpdatedAt?: any;
 }
@@ -34,7 +35,6 @@ export async function addGuarantor(
         body: JSON.stringify({
             GuarantorName: data.Name,
             Description: data.Description || '',
-            // The API handles mapping these to the M_Guarantor schema
         })
     });
 
@@ -50,18 +50,30 @@ export async function addGuarantor(
 export async function getGuarantors(): Promise<GuarantorRecord[]> {
     const q = query(collection(db, COL), orderBy('Name', 'asc'));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-        const data = d.data();
-        let formattedDate: string | null = null;
-        if (data.CreatedAt instanceof Timestamp) {
-            formattedDate = data.CreatedAt.toDate().toISOString();
-        }
-        return {
-            id: d.id,
-            ...data,
-            CreatedAt: formattedDate,
-        } as GuarantorRecord;
-    });
+    return snap.docs
+        .map((d) => {
+            const data = d.data();
+            let formattedDate: string | null = null;
+            if (data.CreatedAt instanceof Timestamp) {
+                formattedDate = data.CreatedAt.toDate().toISOString();
+            }
+            return { id: d.id, ...data, CreatedAt: formattedDate } as GuarantorRecord;
+        })
+        .filter((g) => g.IsDeleted !== true);
+}
+
+export async function getArchivedGuarantors(): Promise<GuarantorRecord[]> {
+    const snap = await getDocs(collection(db, COL));
+    return snap.docs
+        .map((d) => {
+            const data = d.data();
+            let formattedDate: string | null = null;
+            if (data.CreatedAt instanceof Timestamp) {
+                formattedDate = data.CreatedAt.toDate().toISOString();
+            }
+            return { id: d.id, ...data, CreatedAt: formattedDate } as GuarantorRecord;
+        })
+        .filter((g) => g.IsDeleted === true);
 }
 
 export async function getGuarantorById(id: string): Promise<GuarantorRecord | null> {
@@ -95,6 +107,7 @@ export async function updateGuarantor(
     }
 }
 
+// Soft-delete: set IsDeleted = true via API
 export async function deleteGuarantor(id: string): Promise<void> {
     const res = await fetch(`/api/guarantors/${id}`, {
         method: 'DELETE',

@@ -6,26 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
+import { permCache, CACHE_TTL_MS } from '@/lib/permCache';
 
 export const dynamic = 'force-dynamic';
-
-// ── Server-side permission cache (survives across requests in same process) ──
-// Keyed by verified UserID (from decoded token — cannot be spoofed by caller).
-// TTL: 60 seconds. Invalidate explicitly when user/role data changes.
-interface CacheEntry {
-    data: object;
-    expiresAt: number;
-}
-const globalAny: any = global;
-if (!globalAny._vmPermCache) {
-    globalAny._vmPermCache = new Map<string, CacheEntry>();
-}
-const permCache: Map<string, CacheEntry> = globalAny._vmPermCache;
-const CACHE_TTL_MS = 60_000; // 60 seconds
-
-export function invalidatePermCache(userId: string) {
-    permCache.delete(userId);
-}
 
 export async function GET(req: NextRequest) {
     const token = req.cookies.get('vm_token')?.value;

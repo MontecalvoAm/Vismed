@@ -36,9 +36,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     try {
         const resolvedParams = await params;
 
-        // Soft delete
+        // Soft delete — move to archive
         await adminDb.collection(COL).doc(resolvedParams.id).update({
-            IsActive: false,
+            IsDeleted: true,
             UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
             UpdatedBy: user?.UserID,
         });

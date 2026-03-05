@@ -19,6 +19,7 @@ import {
     Box,
     ChevronDown,
     ChevronRight,
+    Archive,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -28,7 +29,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
     'Building2': Building2,
     'Stethoscope': Stethoscope,
     'Users': Users,
-    'Shield': Shield
+    'Shield': Shield,
+    'Archive': Archive,
 };
 
 interface AppModule {

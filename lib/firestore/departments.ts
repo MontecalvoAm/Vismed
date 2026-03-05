@@ -16,6 +16,7 @@ export interface Department {
     Description: string;
     SortOrder: number;
     IsActive: boolean;
+    IsDeleted?: boolean;
     CreatedAt?: any;
     CreatedBy?: string;
     UpdatedAt?: any;
@@ -32,7 +33,16 @@ export async function getDepartments(): Promise<Department[]> {
     const snap = await getDocs(q);
     return snap.docs
         .map((d) => ({ DepartmentID: d.id, ...d.data() } as Department))
+        .filter((d) => d.IsDeleted !== true)
         .sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
+}
+
+export async function getArchivedDepartments(): Promise<Department[]> {
+    const snap = await getDocs(collection(db, COL));
+    return snap.docs
+        .map((d) => ({ DepartmentID: d.id, ...d.data() } as Department))
+        .filter((d) => d.IsDeleted === true)
+        .sort((a, b) => a.DepartmentName.localeCompare(b.DepartmentName));
 }
 
 export async function addDepartment(
@@ -75,7 +85,7 @@ export async function updateDepartment(
     }
 }
 
-// Soft-delete: set IsActive = false
+// Soft-delete: set IsDeleted = true
 export async function deleteDepartment(DepartmentID: string, updatedBy: string): Promise<void> {
     const res = await fetch(`/api/departments/${DepartmentID}`, {
         method: 'DELETE',
@@ -88,3 +98,4 @@ export async function deleteDepartment(DepartmentID: string, updatedBy: string):
         throw new Error(errorData.error || 'Failed to delete department');
     }
 }
+

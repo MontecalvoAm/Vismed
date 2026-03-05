@@ -17,6 +17,7 @@ export interface Service {
     Unit: string;
     Description: string;
     IsActive: boolean;
+    IsDeleted?: boolean;
     CreatedAt?: any;
     CreatedBy?: string;
     UpdatedAt?: any;
@@ -28,7 +29,17 @@ const COL = 'M_Service';
 export async function getAllServices(): Promise<Service[]> {
     const q = query(collection(db, COL), where('IsActive', '==', true));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ ServiceID: d.id, ...d.data() } as Service));
+    return snap.docs
+        .map((d) => ({ ServiceID: d.id, ...d.data() } as Service))
+        .filter((s) => s.IsDeleted !== true);
+}
+
+export async function getArchivedServices(): Promise<Service[]> {
+    const snap = await getDocs(collection(db, COL));
+    return snap.docs
+        .map((d) => ({ ServiceID: d.id, ...d.data() } as Service))
+        .filter((s) => s.IsDeleted === true)
+        .sort((a, b) => a.ServiceName.localeCompare(b.ServiceName));
 }
 
 export async function getServicesByDept(DepartmentID: string): Promise<Service[]> {
@@ -40,6 +51,7 @@ export async function getServicesByDept(DepartmentID: string): Promise<Service[]
     const snap = await getDocs(q);
     return snap.docs
         .map((d) => ({ ServiceID: d.id, ...d.data() } as Service))
+        .filter((s) => s.IsDeleted !== true)
         .sort((a, b) => a.ServiceName.localeCompare(b.ServiceName));
 }
 
@@ -81,7 +93,7 @@ export async function updateService(
     }
 }
 
-// Soft-delete
+// Soft-delete: set IsDeleted = true via API
 export async function deleteService(ServiceID: string, updatedBy: string): Promise<void> {
     const res = await fetch(`/api/services/${ServiceID}`, {
         method: 'DELETE',

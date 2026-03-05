@@ -13,6 +13,7 @@ export interface Role {
     RoleName: string;
     Description: string;
     IsActive: boolean;
+    IsDeleted?: boolean;
     CreatedAt?: any;
     UpdatedAt?: any;
 }
@@ -26,26 +27,41 @@ export async function getRoles(): Promise<Role[]> {
             orderBy('RoleName', 'asc')
         );
         const snap = await getDocs(q);
-        return snap.docs.map((d) => ({ RoleID: d.id, ...d.data() } as Role));
+        return snap.docs
+            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
+            .filter((r) => r.IsDeleted !== true);
     } catch {
-        // Fallback without orderBy if index not ready
         const snap = await getDocs(
             query(collection(db, 'M_Role'), where('IsActive', '==', true))
         );
-        return snap.docs.map((d) => ({ RoleID: d.id, ...d.data() } as Role));
+        return snap.docs
+            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
+            .filter((r) => r.IsDeleted !== true);
     }
 }
 
-/** Get ALL roles (for admin management table) */
+/** Get ALL active roles (for admin management table) */
 export async function getAllRoles(): Promise<Role[]> {
     try {
         const snap = await getDocs(
             query(collection(db, 'M_Role'), orderBy('RoleName', 'asc'))
         );
-        return snap.docs.map((d) => ({ RoleID: d.id, ...d.data() } as Role));
+        return snap.docs
+            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
+            .filter((r) => r.IsDeleted !== true);
     } catch {
-        // Fallback without orderBy
         const snap = await getDocs(collection(db, 'M_Role'));
-        return snap.docs.map((d) => ({ RoleID: d.id, ...d.data() } as Role));
+        return snap.docs
+            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
+            .filter((r) => r.IsDeleted !== true);
     }
+}
+
+/** Get archived (soft-deleted) roles */
+export async function getArchivedRoles(): Promise<Role[]> {
+    const snap = await getDocs(collection(db, 'M_Role'));
+    return snap.docs
+        .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
+        .filter((r) => r.IsDeleted === true)
+        .sort((a, b) => a.RoleName.localeCompare(b.RoleName));
 }
