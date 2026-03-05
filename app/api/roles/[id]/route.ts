@@ -9,6 +9,13 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/auth/serverAuth';
 import * as admin from 'firebase-admin';
 
+// When a role changes, all users with that role need fresh permissions.
+// We clear the full cache (it's small and self-heals within one request per user).
+const globalAny: any = global;
+function clearAllPermCaches() {
+    globalAny._vmPermCache?.clear();
+}
+
 const COL = 'M_Role';
 const MODULE_NAME = 'Users'; // Role management usually falls under the Users module access
 
@@ -43,6 +50,9 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
             UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
+        // Invalidate all cached permissions — role change affects all assigned users
+        clearAllPermCaches();
+
         return NextResponse.json({ success: true });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -55,6 +65,8 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     try {
         const { id } = await context.params;
         await adminDb.collection(COL).doc(id).delete();
+        // Invalidate all caches since the role is gone
+        clearAllPermCaches();
         return NextResponse.json({ success: true });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

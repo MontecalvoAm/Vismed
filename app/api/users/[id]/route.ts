@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/auth/serverAuth';
+import { invalidatePermCache } from '@/app/api/auth/me/route';
 import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
 
@@ -64,6 +65,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         // 2. Update Firestore
         await adminDb.collection(COL).doc(resolvedParams.id).update(updateData);
 
+        // 3. Invalidate permission cache so new role/status takes effect immediately
+        invalidatePermCache(resolvedParams.id);
+
         return NextResponse.json({ success: true });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -87,6 +91,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
         // 2. Delete from Firestore
         await adminDb.collection(COL).doc(resolvedParams.id).delete();
+
+        // 3. Evict cache so the deleted user can no longer use a cached permission set
+        invalidatePermCache(resolvedParams.id);
+
         return NextResponse.json({ success: true });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

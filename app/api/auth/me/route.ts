@@ -1,7 +1,6 @@
 // ============================================================
 //  VisayasMed — API: GET /api/auth/me
-//  Refactored to use Firebase Admin SDK to reliably bypass
-//  Firestore security rules when reading RBAC overrides.
+//  Performance-optimized: Parallel Firestore reads + 60s cache
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,6 +8,24 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
 
 export const dynamic = 'force-dynamic';
+
+// ── Server-side permission cache (survives across requests in same process) ──
+// Keyed by verified UserID (from decoded token — cannot be spoofed by caller).
+// TTL: 60 seconds. Invalidate explicitly when user/role data changes.
+interface CacheEntry {
+    data: object;
+    expiresAt: number;
+}
+const globalAny: any = global;
+if (!globalAny._vmPermCache) {
+    globalAny._vmPermCache = new Map<string, CacheEntry>();
+}
+const permCache: Map<string, CacheEntry> = globalAny._vmPermCache;
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+export function invalidatePermCache(userId: string) {
+    permCache.delete(userId);
+}
 
 export async function GET(req: NextRequest) {
     const token = req.cookies.get('vm_token')?.value;
@@ -18,16 +35,13 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // 1. Verify Firebase ID token
+        // 1. Verify Firebase ID token — always verified, never cached
         let decodedToken;
         try {
             decodedToken = await admin.auth().verifyIdToken(token);
         } catch (authErr: any) {
             console.error('Token verification failed:', authErr.message);
-
-            // Check if it's an expired token error
             const isExpired = authErr.code === 'auth/id-token-expired';
-
             return NextResponse.json({
                 authenticated: false,
                 error: 'Session expired. Please log in again.',
@@ -37,8 +51,17 @@ export async function GET(req: NextRequest) {
 
         const UserID = decodedToken.uid;
 
-        // 2. Get M_User record
+        // 2. Return cached result if still fresh (Firestore reads skipped entirely)
+        const cached = permCache.get(UserID);
+        if (cached && Date.now() < cached.expiresAt) {
+            return NextResponse.json(cached.data);
+        }
+
+        // 3. Parallel fetch: M_User + MT_RolePermission + MT_UserOverride simultaneously
+        //    We don't know RoleID yet, so M_User must resolve first, then we fire the
+        //    permission queries in parallel with the role name lookup.
         const userDoc = await adminDb.collection('M_User').doc(UserID).get();
+
         if (!userDoc.exists) {
             return NextResponse.json(
                 { error: 'Account not configured. Contact your administrator.' },
@@ -53,15 +76,19 @@ export async function GET(req: NextRequest) {
 
         const RoleID: string = userRecord.RoleID;
 
-        // 3. Get Role name
-        const roleDoc = await adminDb.collection('M_Role').doc(RoleID).get();
+        // 4. Run role name + role permissions + user overrides ALL in parallel
+        const [roleDoc, rolePermsSnap, overridesSnap] = await Promise.all([
+            adminDb.collection('M_Role').doc(RoleID).get(),
+            adminDb.collection('MT_RolePermission').where('RoleID', '==', RoleID).get(),
+            adminDb.collection('MT_UserOverride').where('UserID', '==', UserID).get(),
+        ]);
+
         const roleName: string = roleDoc.exists ? roleDoc.data()?.RoleName : 'Unknown';
 
-        // 4. Resolve Hybrid RBAC — base role permissions
+        // 5. Resolve Hybrid RBAC — base role permissions first
         const resolved: Record<string, any> = {};
 
-        const rolePermsQuery = await adminDb.collection('MT_RolePermission').where('RoleID', '==', RoleID).get();
-        rolePermsQuery.docs.forEach(d => {
+        rolePermsSnap.docs.forEach(d => {
             const perm = d.data();
             resolved[perm.ModuleName] = {
                 CanView: perm.CanView === true || String(perm.CanView).toLowerCase() === 'true',
@@ -71,9 +98,8 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        // 5. User-specific overrides (take priority)
-        const overridesQuery = await adminDb.collection('MT_UserOverride').where('UserID', '==', UserID).get();
-        overridesQuery.docs.forEach(d => {
+        // 6. User-specific overrides take full priority
+        overridesSnap.docs.forEach(d => {
             const ov = d.data();
             resolved[ov.ModuleName] = {
                 CanView: ov.CanView === true || String(ov.CanView).toLowerCase() === 'true',
@@ -83,7 +109,7 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        return NextResponse.json({
+        const responseData = {
             UserID,
             Email: userRecord.Email,
             FirstName: userRecord.FirstName,
@@ -91,7 +117,12 @@ export async function GET(req: NextRequest) {
             RoleID,
             RoleName: roleName,
             Permissions: resolved,
-        });
+        };
+
+        // 7. Store in cache for 60 seconds
+        permCache.set(UserID, { data: responseData, expiresAt: Date.now() + CACHE_TTL_MS });
+
+        return NextResponse.json(responseData);
     } catch (err: any) {
         console.error('[/api/auth/me] Unexpected error:', err?.message ?? err);
         return NextResponse.json({ error: 'Server error: ' + (err?.message ?? 'unknown') }, { status: 500 });

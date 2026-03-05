@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    // Enable gzip/brotli compression for all responses — reduces transfer size by 20-30%
+    compress: true,
+
+    experimental: {
+        // Tree-shake lucide-react so only used icons are bundled
+        optimizePackageImports: ['lucide-react'],
+    },
+
     async headers() {
         return [
             {

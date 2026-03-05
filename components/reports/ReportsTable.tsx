@@ -132,11 +132,36 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
 
     if (isLoading) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-16 text-center">
-                <div className="inline-flex flex-col items-center gap-3 text-gray-400">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-primary" />
-                    <p className="text-sm">Loading history...</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                {/* Skeleton header */}
+                <div className="bg-gray-50/80 px-5 py-4 border-b border-gray-200 flex gap-6">
+                    {[100, 120, 160, 120, 120, 80, 80, 90].map((w, i) => (
+                        <div key={i} className="h-3.5 rounded bg-gray-200 animate-pulse" style={{ width: w }} />
+                    ))}
                 </div>
+                {/* Skeleton rows */}
+                {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-6 px-5 py-4 border-b border-gray-100">
+                        <div className="h-4 w-4 rounded bg-gray-100 animate-pulse shrink-0" />
+                        <div className="h-3.5 rounded bg-gray-100 animate-pulse" style={{ width: 90, animationDelay: `${i * 60}ms` }} />
+                        <div className="h-3.5 rounded bg-gray-100 animate-pulse" style={{ width: 100, animationDelay: `${i * 60}ms` }} />
+                        <div className="flex items-center gap-2 flex-1" style={{ animationDelay: `${i * 60}ms` }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-100 animate-pulse shrink-0" />
+                            <div className="space-y-1.5">
+                                <div className="h-3.5 rounded bg-gray-100 animate-pulse w-32" />
+                                <div className="h-3 rounded bg-gray-100 animate-pulse w-20" />
+                            </div>
+                        </div>
+                        <div className="h-3.5 rounded bg-gray-100 animate-pulse w-24" style={{ animationDelay: `${i * 60}ms` }} />
+                        <div className="h-3.5 rounded bg-gray-100 animate-pulse w-20" style={{ animationDelay: `${i * 60}ms` }} />
+                        <div className="h-3.5 rounded bg-gray-100 animate-pulse w-16" style={{ animationDelay: `${i * 60}ms` }} />
+                        <div className="h-6 rounded-full bg-gray-100 animate-pulse w-20" style={{ animationDelay: `${i * 60}ms` }} />
+                        <div className="flex gap-2">
+                            <div className="h-7 w-7 rounded-lg bg-gray-100 animate-pulse" />
+                            <div className="h-7 w-7 rounded-lg bg-gray-100 animate-pulse" />
+                        </div>
+                    </div>
+                ))}
             </div>
         );
     }
