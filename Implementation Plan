@@ -1,0 +1,50 @@
+# Goal Description
+The objective is to rename the existing "Records" (currently using the `/history` path) to "Reports" (`/reports`), and implement a feature allowing users to batch print multiple selected reports via a "Print" button.
+
+## User Review Required
+> [!IMPORTANT]
+> The navigation menu loads items from Firestore (`M_Module`). Since we are changing `history` to `reports`, existing roles and modules in the database need to be updated. I will create a temporary API route (`/api/migrate-history`) that we can visit once to update the Firestore documents automatically, or if you prefer, I can just update the seed file and you can re-seed the database. Let me know if a temporary migration route is acceptable.
+
+## Proposed Changes
+
+### 1. Rename Folders and Update Imports
+- **[MODIFY]** Rename `app/history` to `app/reports`.
+- **[MODIFY]** Rename `components/history` to `components/reports`.
+- **[MODIFY]** Update all internal imports and relative paths in `app/reports/page.tsx`, `app/reports/edit/[id]/page.tsx`, and all components inside `components/reports/`.
+- **[MODIFY]** Update the Edit route string inside `ReportsTable.tsx` from `/history/edit/` to `/reports/edit/`.
+
+### 2. Update Database Seeding and Module Navigation
+- **[MODIFY]** `app/api/seed/route.ts`
+  - Change `ModuleID: 'history'` to `'reports'`.
+  - Change `ModuleName: 'History'` to `'Reports'`.
+  - Change `Label: 'Records'` to `'Reports'`.
+  - Change `Path: '/history'` to `'/reports'`.
+- **[NEW]** `app/api/migrate-history/route.ts`
+  - A temporary route to update the existing Firestore database (changes `M_Module` ID and path to `/reports` and updates `MT_RolePermission` to reference "Reports" instead of "History" and "Records").
+
+### 3. Add Batch Print Functionality
+- **[MODIFY]** `components/reports/ReportsTable.tsx`
+  - Add a "Print Selected" button next to the "Delete Selected" button.
+  - When clicked, it will open `window.open('/reports/print?ids=' + selectedIds.join(','), '_blank')`.
+- **[NEW]** `app/reports/print/page.tsx`
+  - A new print-only layout that reads quotation IDs from the URL query parameters.
+  - Fetches the selected quotations.
+  - Loops securely over them, rendering `PdfGeneratorRenderer` for each, separated by a CSS page break (`page-break-after: always`).
+  - Calls `window.print()` automatically when rendering finishes.
+
+### 4. Searchable & Scrollable Filter Dropdowns
+- **[MODIFY]** `components/reports/ReportsFilter.tsx` (previously `HistoryFilter.tsx`)
+  - Replace the native `<select>` dropdowns for "All Statuses" and "All Guarantors" with the custom `SearchableSelect` component.
+  - Format the status and guarantor data to fit the `SearchableSelect` properties (`options`, `displayKey`, etc.).
+- **[MODIFY]** `components/ui/SearchableSelect.tsx`
+  - Update the dropdown height to restrict visibility to exactly 5 items (using `max-h-[200px]` since each item is roughly `40px` tall), forcing the list to be scrollable when there are more than 5 options.
+
+## Verification Plan
+
+### Automated Tests
+- None specified for this feature, but I will build the NextJS app via `npm run build` to ensure no import or type errors exist.
+
+### Manual Verification
+1. I will execute the temporary migration API endpoint to update the DB.
+2. Visit `http://localhost:3000/reports` and verify the sidebar matches and works.
+3. Select a few quotations using the checkbox and click "Print Selected". Ensure a new print dialog opens with the correct formatted pages and data for the selected quotations.

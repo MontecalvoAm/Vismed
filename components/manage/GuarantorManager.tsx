@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, Shield, LayoutGrid, ChevronLeft, ChevronRight, ChevronDown, ChevronRightIcon, FileText, FileSearch, Activity, User, Edit3 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, Shield, LayoutGrid, ChevronLeft, ChevronRight, ChevronDown, ChevronRightIcon, FileText, FileSearch, Activity, User, Edit3, Printer, Calendar } from 'lucide-react';
 import { getGuarantors, addGuarantor, updateGuarantor, deleteGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
 import { getQuotationsByGuarantor, QuotationRecord, updateQuotationStatus, deleteQuotation } from '@/lib/firestore/quotations';
 import { useAuth } from '@/context/AuthContext';
@@ -14,9 +14,10 @@ import { useConfirm } from '@/context/ConfirmContext';
 import FormModal from '@/components/manage/FormModal';
 import AccessDenied from '@/components/AccessDenied';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
-import TrackingModal from '@/components/history/TrackingModal';
-import PdfViewerModal from '@/components/history/PdfViewerModal';
-import ServiceBreakdown from '@/components/history/ServiceBreakdown';
+import TrackingModal from '@/components/reports/TrackingModal';
+import PdfViewerModal from '@/components/reports/PdfViewerModal';
+import GuarantorReportModal from '@/components/manage/GuarantorReportModal';
+import ServiceBreakdown from '@/components/reports/ServiceBreakdown';
 
 const EMPTY_FORM = { Name: '', Description: '' };
 
@@ -30,7 +31,7 @@ export default function GuarantorManager() {
     const { user } = useAuth();
     const { alert, confirm } = useConfirm();
     const perms = user?.Permissions?.Guarantors;
-    const historyPerms = user?.Permissions?.History; // For quotation actions in expanded rows
+    const historyPerms = user?.Permissions?.Reports; // For quotation actions in expanded rows
     const router = useRouter();
 
     const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
@@ -62,8 +63,10 @@ export default function GuarantorManager() {
 
     // For quotation search and pagination within expanded guarantor
     const [quotationSearchTerm, setQuotationSearchTerm] = useState('');
+    const [quotationFilterDate, setQuotationFilterDate] = useState('');
     const [quotationCurrentPage, setQuotationCurrentPage] = useState(1);
     const [quotationRowsPerPage, setQuotationRowsPerPage] = useState(5);
+    const [reportModalOpen, setReportModalOpen] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -189,6 +192,7 @@ export default function GuarantorManager() {
         setExpandedLoading(true);
         // Reset quotation search and pagination when switching guarantors
         setQuotationSearchTerm('');
+        setQuotationFilterDate('');
         setQuotationCurrentPage(1);
         setExpandedQuotationRows(new Set());
         try {
@@ -412,23 +416,49 @@ export default function GuarantorManager() {
                                                 <td colSpan={5} className="p-0 border-b border-slate-200">
                                                     <div className="py-4 px-8 md:px-14">
                                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                                                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                                                <FileText className="w-4 h-4 text-primary" /> Connected Quotations
-                                                            </h4>
+                                                            <div className="flex items-center gap-3">
+                                                                <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                                                    <FileText className="w-4 h-4 text-primary" /> Connected Quotations
+                                                                </h4>
+                                                                {!expandedLoading && expandedData.length > 0 && (
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); setReportModalOpen(true); }}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 rounded-lg transition-colors border border-emerald-200/50"
+                                                                    >
+                                                                        <Printer className="w-3.5 h-3.5" /> Print Report
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                             {!expandedLoading && expandedData.length > 0 && (
-                                                                <div className="relative w-full sm:max-w-xs">
-                                                                    <input
-                                                                        type="search"
-                                                                        placeholder="Search quotations..."
-                                                                        className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
-                                                                        value={quotationSearchTerm}
-                                                                        onChange={(e) => {
-                                                                            setQuotationSearchTerm(e.target.value);
-                                                                            setQuotationCurrentPage(1);
-                                                                        }}
-                                                                    />
-                                                                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                                                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                                                    <div className="relative w-full sm:w-40">
+                                                                        <input
+                                                                            type="date"
+                                                                            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700 appearance-none"
+                                                                            value={quotationFilterDate}
+                                                                            onChange={(e) => {
+                                                                                setQuotationFilterDate(e.target.value);
+                                                                                setQuotationCurrentPage(1);
+                                                                            }}
+                                                                        />
+                                                                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                                                                            <Calendar className="w-3.5 h-3.5" />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="relative w-full sm:w-64">
+                                                                        <input
+                                                                            type="search"
+                                                                            placeholder="Search quotations..."
+                                                                            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
+                                                                            value={quotationSearchTerm}
+                                                                            onChange={(e) => {
+                                                                                setQuotationSearchTerm(e.target.value);
+                                                                                setQuotationCurrentPage(1);
+                                                                            }}
+                                                                        />
+                                                                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -438,20 +468,27 @@ export default function GuarantorManager() {
                                                         ) : expandedData.length === 0 ? (
                                                             <p className="text-xs text-slate-400 italic py-2">No active records for this guarantor.</p>
                                                         ) : (() => {
-                                                            // Filter quotations based on search term
-                                                            const filteredQuotations = expandedData.filter(q =>
-                                                                (q.DocumentNo || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
-                                                                (q.CustomerName || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
-                                                                (q.CustomerEmail || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
-                                                                (q.CustomerPhone || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
-                                                                (q.PreparedBy || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
-                                                                (q.Status || '').toLowerCase().includes(quotationSearchTerm.toLowerCase())
-                                                            );
+                                                            // Filter quotations based on search term and date
+                                                            const filteredQuotations = expandedData.filter(q => {
+                                                                const matchesSearch = (q.DocumentNo || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                    (q.CustomerName || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                    (q.CustomerEmail || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                    (q.CustomerPhone || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                    (q.PreparedBy || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                                                                    (q.Status || '').toLowerCase().includes(quotationSearchTerm.toLowerCase());
+
+                                                                const matchesDate = !quotationFilterDate || (q.CreatedAt && new Date(q.CreatedAt).toISOString().split('T')[0] === quotationFilterDate);
+
+                                                                return matchesSearch && matchesDate;
+                                                            });
                                                             const quotationTotalPages = Math.max(1, Math.ceil(filteredQuotations.length / quotationRowsPerPage));
                                                             const paginatedQuotations = filteredQuotations.slice(
                                                                 (quotationCurrentPage - 1) * quotationRowsPerPage,
                                                                 quotationCurrentPage * quotationRowsPerPage
                                                             );
+
+                                                            const grandTotalAmount = filteredQuotations.reduce((sum, q) => sum + (q.Total || 0), 0);
+                                                            const pageTotalAmount = paginatedQuotations.reduce((sum, q) => sum + (q.Total || 0), 0);
 
                                                             return (
                                                                 <div className="space-y-3">
@@ -548,7 +585,7 @@ export default function GuarantorManager() {
                                                                                                             </button>
                                                                                                             {historyPerms?.CanEdit && (
                                                                                                                 <button
-                                                                                                                    onClick={() => router.push('/history/edit/' + q.id)}
+                                                                                                                    onClick={() => router.push('/reports/edit/' + q.id)}
                                                                                                                     title="Edit Quotation"
                                                                                                                     className="p-1.5 rounded-lg text-primary hover:text-white hover:bg-primary transition-all shadow-sm border border-slate-200 bg-white"
                                                                                                                 >
@@ -599,50 +636,58 @@ export default function GuarantorManager() {
                                                                         </table>
                                                                     </div>
 
-                                                                    {/* Quotation Pagination */}
-                                                                    {filteredQuotations.length > quotationRowsPerPage && (
-                                                                        <div className="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-white rounded-b-lg">
-                                                                            <div className="flex flex-col sm:flex-row items-center gap-4">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="text-slate-500">Show</span>
-                                                                                    <select
-                                                                                        value={quotationRowsPerPage}
-                                                                                        onChange={(e) => {
-                                                                                            setQuotationRowsPerPage(Number(e.target.value));
-                                                                                            setQuotationCurrentPage(1);
-                                                                                        }}
-                                                                                        className="border border-slate-300 rounded text-xs py-1 px-1.5 focus:ring-primary focus:border-primary outline-none bg-white"
-                                                                                    >
-                                                                                        <option value={5}>5</option>
-                                                                                        <option value={10}>10</option>
-                                                                                        <option value={20}>20</option>
-                                                                                        <option value={50}>50</option>
-                                                                                    </select>
-                                                                                    <span className="text-slate-500">entries</span>
+                                                                    {/* Quotation Totals & Pagination */}
+                                                                    {filteredQuotations.length > 0 && (
+                                                                        <div className="flex flex-col border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm mt-3">
+                                                                            <div className="flex justify-end p-3 lg:px-6 bg-slate-50 border-b border-slate-100">
+                                                                                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+                                                                                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Page Total:</span>
+                                                                                    <span className="text-base font-bold text-primary">₱{pageTotalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
                                                                                 </div>
-                                                                                <span className="text-slate-500">
-                                                                                    Showing {filteredQuotations.length === 0 ? 0 : (quotationCurrentPage - 1) * quotationRowsPerPage + 1} to {Math.min(quotationCurrentPage * quotationRowsPerPage, filteredQuotations.length)} of {filteredQuotations.length} entries
-                                                                                </span>
                                                                             </div>
+                                                                            <div className="p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-white">
+                                                                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <span className="text-slate-500">Show</span>
+                                                                                        <select
+                                                                                            value={quotationRowsPerPage}
+                                                                                            onChange={(e) => {
+                                                                                                setQuotationRowsPerPage(Number(e.target.value));
+                                                                                                setQuotationCurrentPage(1);
+                                                                                            }}
+                                                                                            className="border border-slate-300 rounded text-xs py-1 px-1.5 focus:ring-primary focus:border-primary outline-none bg-white"
+                                                                                        >
+                                                                                            <option value={5}>5</option>
+                                                                                            <option value={10}>10</option>
+                                                                                            <option value={20}>20</option>
+                                                                                            <option value={50}>50</option>
+                                                                                        </select>
+                                                                                        <span className="text-slate-500">entries</span>
+                                                                                    </div>
+                                                                                    <span className="text-slate-500">
+                                                                                        Showing {filteredQuotations.length === 0 ? 0 : (quotationCurrentPage - 1) * quotationRowsPerPage + 1} to {Math.min(quotationCurrentPage * quotationRowsPerPage, filteredQuotations.length)} of {filteredQuotations.length} entries
+                                                                                    </span>
+                                                                                </div>
 
-                                                                            <div className="flex items-center gap-2">
-                                                                                <button
-                                                                                    onClick={() => setQuotationCurrentPage(p => Math.max(1, p - 1))}
-                                                                                    disabled={quotationCurrentPage === 1}
-                                                                                    className="p-1 rounded border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
-                                                                                >
-                                                                                    <ChevronLeft className="w-3.5 h-3.5" />
-                                                                                </button>
-                                                                                <span className="px-2 py-0.5 font-medium text-slate-700">
-                                                                                    Page {quotationCurrentPage} of {quotationTotalPages}
-                                                                                </span>
-                                                                                <button
-                                                                                    onClick={() => setQuotationCurrentPage(p => Math.min(quotationTotalPages, p + 1))}
-                                                                                    disabled={quotationCurrentPage === quotationTotalPages}
-                                                                                    className="p-1 rounded border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
-                                                                                >
-                                                                                    <ChevronRight className="w-3.5 h-3.5" />
-                                                                                </button>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <button
+                                                                                        onClick={() => setQuotationCurrentPage(p => Math.max(1, p - 1))}
+                                                                                        disabled={quotationCurrentPage === 1}
+                                                                                        className="p-1 rounded border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                                                                    >
+                                                                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                                                                    </button>
+                                                                                    <span className="px-2 py-0.5 font-medium text-slate-700">
+                                                                                        Page {quotationCurrentPage} of {quotationTotalPages}
+                                                                                    </span>
+                                                                                    <button
+                                                                                        onClick={() => setQuotationCurrentPage(p => Math.min(quotationTotalPages, p + 1))}
+                                                                                        disabled={quotationCurrentPage === quotationTotalPages}
+                                                                                        className="p-1 rounded border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                                                                    >
+                                                                                        <ChevronRight className="w-3.5 h-3.5" />
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     )}
@@ -776,6 +821,27 @@ export default function GuarantorManager() {
                 onClose={() => setViewingQuotation(null)}
                 quotation={viewingQuotation}
             />
+
+            {/* Guarantor Report Modal */}
+            {expandedRow && (
+                <GuarantorReportModal
+                    isOpen={reportModalOpen}
+                    onClose={() => setReportModalOpen(false)}
+                    guarantor={guarantors.find(g => g.id === expandedRow) || null}
+                    preparedBy={user ? `${user.FirstName} ${user.LastName}` : 'System Admin'}
+                    quotations={expandedData.filter(q => {
+                        const matchesSearch = (q.DocumentNo || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                            (q.CustomerName || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                            (q.CustomerEmail || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                            (q.CustomerPhone || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                            (q.PreparedBy || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||
+                            (q.Status || '').toLowerCase().includes(quotationSearchTerm.toLowerCase());
+                        const matchesDate = !quotationFilterDate || (q.CreatedAt && new Date(q.CreatedAt).toISOString().split('T')[0] === quotationFilterDate);
+                        return matchesSearch && matchesDate;
+                    })}
+                    filterDate={quotationFilterDate}
+                />
+            )}
         </div>
     );
 }

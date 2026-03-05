@@ -2,7 +2,8 @@
  * Quotation Status Utility Functions
  *
  * Handles status auto-complete logic for quotations.
- * Only Pharmacy department items with quantity <= 1 should auto-complete.
+ * Pharmacy items with quantity <= 1 still auto-complete.
+ * One Time Visits auto-complete all items entirely.
  */
 
 export interface QuotationItemLike {
@@ -22,13 +23,10 @@ export function isPharmacyDepartment(deptName: string): boolean {
 
 /**
  * Determines the initial status for a new quotation based on its items.
- *
- * Rules:
- * - If ALL items are pharmacy items with quantity <= 1 → 'Completed'
- * - Otherwise → 'Incomplete'
  */
-export function determineInitialStatus(items: QuotationItemLike[]): string {
+export function determineInitialStatus(items: QuotationItemLike[], isOneTimeVisit: boolean = false): string {
     if (items.length === 0) return 'Incomplete';
+    if (isOneTimeVisit) return 'Completed';
 
     // Check if ALL items are pharmacy items with quantity <= 1
     const allPharmacyAutoComplete = items.every(item => {
@@ -41,21 +39,22 @@ export function determineInitialStatus(items: QuotationItemLike[]): string {
 }
 
 /**
- * Determines the session type based on total quantity
+ * Determines the session type.
  */
-export function determineSessionType(items: QuotationItemLike[]): 'Per-session' | 'One-time' {
+export function determineSessionType(items: QuotationItemLike[], isOneTimeVisit: boolean = false): 'Per-session' | 'One-time' {
+    if (isOneTimeVisit) return 'One-time';
+
+    // Otherwise fallback logic
     const totalQuantity = items.reduce((sum, i) => sum + (Number(i.Quantity) || 1), 0);
     return totalQuantity > 1 ? 'Per-session' : 'One-time';
 }
 
 /**
  * Checks if a single item should be considered auto-completed.
- *
- * An item is auto-completed if:
- * - It's a Pharmacy department item AND quantity <= 1
- * - OR it has been fully used (used >= total)
  */
-export function isItemAutoComplete(item: QuotationItemLike): boolean {
+export function isItemAutoComplete(item: QuotationItemLike, isOneTimeVisit: boolean = false): boolean {
+    if (isOneTimeVisit) return true;
+
     const isPharmacy = isPharmacyDepartment(item.Department || '');
     const qty = item.Quantity || 1;
     const used = item.Used || 0;
@@ -69,11 +68,10 @@ export function isItemAutoComplete(item: QuotationItemLike): boolean {
 
 /**
  * Checks if an item should be considered completed based on tracking progress.
- *
- * For Pharmacy items with max <= 1: auto-completed (no tracking needed)
- * For other items: completed when used === max
  */
-export function isItemTrackingCompleted(item: QuotationItemLike): boolean {
+export function isItemTrackingCompleted(item: QuotationItemLike, isOneTimeVisit: boolean = false): boolean {
+    if (isOneTimeVisit) return true;
+
     const isPharmacy = isPharmacyDepartment(item.Department || '');
     const max = item.Quantity || 1;
     const used = item.Used || 0;
@@ -87,16 +85,13 @@ export function isItemTrackingCompleted(item: QuotationItemLike): boolean {
 
 /**
  * Determines the overall quotation status based on item usage.
- *
- * Takes into account pharmacy auto-complete logic:
- * - Pharmacy items with qty <= 1 are considered automatically completed
- * - Other items need to be fully tracked to be completed
  */
-export function determineStatusFromTracking(items: QuotationItemLike[]): 'Completed' | 'Incomplete' {
+export function determineStatusFromTracking(items: QuotationItemLike[], isOneTimeVisit: boolean = false): 'Completed' | 'Incomplete' {
+    if (isOneTimeVisit) return 'Completed';
     if (items.length === 0) return 'Incomplete';
 
     // Check if ALL items are completed (either auto-completed or fully tracked)
-    const allCompleted = items.every(item => isItemTrackingCompleted(item));
+    const allCompleted = items.every(item => isItemTrackingCompleted(item, false));
 
     return allCompleted ? 'Completed' : 'Incomplete';
 }

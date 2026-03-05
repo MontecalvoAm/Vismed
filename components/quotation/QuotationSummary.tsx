@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Download, Edit3, Loader2, FileText, Printer } from 'lucide-react';
 import { useConfirm } from '@/context/ConfirmContext';
-import PdfGeneratorRenderer from '../history/PdfGeneratorRenderer';
+import PdfGeneratorRenderer from '../reports/PdfGeneratorRenderer';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 import { determineSessionType, determineInitialStatus } from '@/lib/utils/quotationStatus';
 
@@ -24,10 +24,10 @@ export default function QuotationSummary({
     const grandTotal = items.reduce((sum, i) => sum + i.subtotal, 0);
 
     // Determine session type and initial status using utility functions
-    // Status is only auto-completed for Pharmacy items with quantity <= 1
     const itemsForStatus = items.map(i => ({ Department: i.deptName, Quantity: i.sessions }));
-    const sessionType = determineSessionType(itemsForStatus);
-    const finalStatus = determineInitialStatus(itemsForStatus);
+    const isOneTimeVisit = customer.isOneTimeVisit === true;
+    const sessionType = determineSessionType(itemsForStatus, isOneTimeVisit);
+    const finalStatus = determineInitialStatus(itemsForStatus, isOneTimeVisit);
 
     // Prepare standard record format for the renderer
     const recordFormat = {
@@ -48,14 +48,24 @@ export default function QuotationSummary({
         CustomerNotes: customer.notes || '',
         HospitalName: 'VisayasMed Hospital',
         PreparedBy: preparedBy || '',
-        Items: items.map((i) => ({
-            Id: i.id || Math.random().toString(),
-            Name: i.serviceName,
-            Department: i.deptName,
-            Price: i.unitPrice,
-            Quantity: i.sessions,
-            Unit: i.unit || '',
-        })),
+        Items: items.map((i) => {
+            let initialUsed = 0;
+            if (isOneTimeVisit) {
+                initialUsed = i.sessions;
+            } else if (i.deptName.toLowerCase().includes('pharmacy') && i.sessions <= 1) {
+                initialUsed = i.sessions;
+            }
+
+            return {
+                Id: i.id || Math.random().toString(),
+                Name: i.serviceName,
+                Department: i.deptName,
+                Price: i.unitPrice,
+                Quantity: i.sessions,
+                Used: initialUsed,
+                Unit: i.unit || '',
+            };
+        }),
         Subtotal: grandTotal,
         Vat: 0,
         Total: grandTotal,
@@ -102,7 +112,7 @@ export default function QuotationSummary({
         const fullHeight = el.scrollHeight;
 
         const canvas = await html2canvas(el, {
-            scale: 5,
+            scale: 2,
             useCORS: true,
             backgroundColor: '#ffffff',
             width: fullWidth,
@@ -170,23 +180,12 @@ export default function QuotationSummary({
                 // Embed javascript in the PDF to auto-print when opened
                 pdf.autoPrint();
 
-                // Use a hidden iframe to silently trigger the print dialog
+                // Open the PDF in a new tab to reliably trigger the print dialog
                 const stringPdf = pdf.output('bloburl');
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = stringPdf.toString();
-
-                document.body.appendChild(iframe);
+                window.open(stringPdf.toString(), '_blank');
 
                 // Set the feedback status immediately
                 setFeedback({ isOpen: true, type: 'success', title: 'Saved & Printed', message: 'Quotation saved and ready for printing.' });
-
-                // Optional: clean up the iframe after some time
-                setTimeout(() => {
-                    if (document.body.contains(iframe)) {
-                        document.body.removeChild(iframe);
-                    }
-                }, 300000); // 5 minutes to ensure printing succeeds before removal
 
             } else {
                 setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save to database. Printing aborted.' });

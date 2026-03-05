@@ -3,7 +3,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 
-export default function SearchableSelect({ options, value, onChange, placeholder = 'Search...', displayKey = 'name', valueKey = 'id', renderOption }) {
+interface SearchableSelectProps {
+    options: any[];
+    value: string;
+    onChange: (val: any) => void;
+    placeholder?: string;
+    displayKey?: string;
+    valueKey?: string;
+    renderOption?: (opt: any) => React.ReactNode;
+}
+
+export default function SearchableSelect({ options, value, onChange, placeholder = 'Search...', displayKey = 'name', valueKey = 'id', renderOption }: SearchableSelectProps) {
     const [query, setQuery] = useState('');
     const [open, setOpen] = useState(false);
     const [highlighted, setHighlighted] = useState(0);
@@ -89,7 +99,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                         </div>
                     </div>
 
-                    <ul ref={listRef} className="max-h-[240px] overflow-y-auto overscroll-contain py-1">
+                    <ul ref={listRef} className="max-h-[200px] overflow-y-auto overscroll-contain py-1">
                         {filtered.length === 0 ? (
                             <li className="px-4 py-3 text-sm text-center text-slate-500">No results found</li>
                         ) : (
@@ -97,10 +107,10 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                                 <li
                                     key={opt[valueKey]}
                                     className={`px-4 py-2.5 cursor-pointer text-sm transition-colors border-l-2 ${i === highlighted
-                                            ? 'bg-primary/5 text-primary border-primary'
-                                            : opt[valueKey] === value
-                                                ? 'bg-slate-50 text-slate-800 border-transparent font-medium'
-                                                : 'text-slate-700 border-transparent hover:bg-slate-50'
+                                        ? 'bg-primary/5 text-primary border-primary'
+                                        : opt[valueKey] === value
+                                            ? 'bg-slate-50 text-slate-800 border-transparent font-medium'
+                                            : 'text-slate-700 border-transparent hover:bg-slate-50'
                                         }`}
                                     onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
                                     onMouseEnter={() => setHighlighted(i)}

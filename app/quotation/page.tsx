@@ -30,7 +30,8 @@ const initialCustomer = {
     date: getTodayFormatted(),
     guarantorId: '',
     guarantorName: '',
-    sessionType: 'Per-session'
+    sessionType: 'Per-session',
+    isOneTimeVisit: false
 };
 
 type ItemType = {

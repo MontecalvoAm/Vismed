@@ -262,6 +262,30 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
                     </div>
                 </div>
 
+                {/* 8. One Time Visit Checkbox */}
+                <div className="md:col-span-2 mt-2">
+                    <label className="flex items-center gap-3 cursor-pointer group p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
+                        <div className="relative flex items-center">
+                            <input
+                                type="checkbox"
+                                name="isOneTimeVisit"
+                                className="peer sr-only"
+                                checked={data.isOneTimeVisit || false}
+                                onChange={(e) => onChange({ ...data, isOneTimeVisit: e.target.checked })}
+                            />
+                            <div className="w-6 h-6 rounded-md bg-white border-2 border-slate-300 peer-checked:bg-primary peer-checked:border-primary transition-colors flex items-center justify-center shadow-sm group-hover:border-primary/50">
+                                <svg className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-800">One Time Visit</span>
+                            <span className="text-xs text-slate-500">Check this if all items on this quotation will be completed in a single session.</span>
+                        </div>
+                    </label>
+                </div>
+
             </div>
 
             {/* Read-only auto fields */}
