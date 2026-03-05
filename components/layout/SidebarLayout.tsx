@@ -16,7 +16,9 @@ import {
     X,
     LogOut,
     Shield,
-    Box
+    Box,
+    ChevronDown,
+    ChevronRight,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -48,6 +50,7 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
     const { user, loading, logout } = useAuth();
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isReportsOpen, setIsReportsOpen] = useState(pathname.startsWith('/reports'));
 
     const [modules, setModules] = useState<AppModule[]>([]);
     const [modulesLoading, setModulesLoading] = useState(true);
@@ -71,21 +74,42 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
     }, []);
 
     // Build navigation tabs dynamically
-    const navTabs = modules
-        .filter(mod => {
-            // First two (Quotations, History) historically might be public to all users, 
-            // but the prompt specified: "Only modules with CanView === true for the active user will be displayed."
-            // So we strictly enforce CanView for everything.
-            return user?.Permissions?.[mod.ModuleName]?.CanView === true;
-        })
+    const rawTabs = modules
+        .filter(mod => user?.Permissions?.[mod.ModuleName]?.CanView === true)
         .map(mod => {
-            const IconComp = ICON_MAP[mod.Icon] || Box; // Fallback to Box icon
+            const IconComp = ICON_MAP[mod.Icon] || Box;
             return {
+                id: mod.ModuleID,
                 href: mod.Path,
                 label: mod.Label,
                 icon: <IconComp className="w-4 h-4" />
             };
         });
+
+    const navItems: any[] = [];
+    const reportGroup: any = {
+        label: 'Reports',
+        icon: <ClipboardList className="w-4 h-4" />,
+        isGroup: true,
+        children: []
+    };
+
+    rawTabs.forEach(tab => {
+        if (tab.id === 'reports' || tab.id === 'logs') {
+            reportGroup.children.push(tab);
+        } else {
+            navItems.push(tab);
+        }
+    });
+
+    if (reportGroup.children.length > 0) {
+        const insertIndex = rawTabs.findIndex(t => t.id === 'reports' || t.id === 'logs');
+        if (insertIndex !== -1) {
+            navItems.splice(insertIndex, 0, reportGroup);
+        } else {
+            navItems.push(reportGroup);
+        }
+    }
 
     if (loading || modulesLoading) {
         return (
@@ -142,12 +166,59 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                 <div className="flex-1 py-6 px-4 overflow-y-auto relative z-10">
                     <div className="text-xs font-semibold text-blue-200/60 tracking-wider mb-3 px-2 uppercase">Menu</div>
                     <nav className="space-y-1.5">
-                        {navTabs.map(tab => {
-                            const active = pathname === tab.href || pathname.startsWith(tab.href + '/');
+                        {navItems.map((item, idx) => {
+                            if (item.isGroup) {
+                                const activeChild = item.children.some((c: any) => pathname === c.href || pathname.startsWith(c.href + '/'));
+                                return (
+                                    <div key={item.label} className="space-y-1">
+                                        <button
+                                            onClick={() => setIsReportsOpen(!isReportsOpen)}
+                                            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeChild || isReportsOpen
+                                                ? 'bg-white/10 text-white'
+                                                : 'text-blue-100/70 hover:text-white hover:bg-white/5'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`${activeChild || isReportsOpen ? 'text-white' : 'text-blue-200/50 group-hover:text-white transition-colors'}`}>
+                                                    {item.icon}
+                                                </div>
+                                                {item.label}
+                                            </div>
+                                            {isReportsOpen ? <ChevronDown className="w-4 h-4 text-blue-200/50" /> : <ChevronRight className="w-4 h-4 text-blue-200/50" />}
+                                        </button>
+
+                                        {isReportsOpen && (
+                                            <div className="pl-10 pr-2 space-y-1 mt-1">
+                                                {item.children.map((child: any) => {
+                                                    const childActive = pathname === child.href;
+                                                    return (
+                                                        <Link
+                                                            key={child.href}
+                                                            href={child.href}
+                                                            onClick={() => setIsSidebarOpen(false)}
+                                                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${childActive
+                                                                ? 'bg-brand-lime-green/20 text-brand-lime-green shadow-sm border border-brand-lime-green/10'
+                                                                : 'text-blue-100/70 hover:text-white hover:bg-white/5'
+                                                                }`}
+                                                        >
+                                                            <div className={`${childActive ? 'text-brand-lime-green' : 'text-blue-200/50 group-hover:text-white transition-colors'}`}>
+                                                                {child.icon}
+                                                            </div>
+                                                            {child.label}
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            const active = pathname === item.href || pathname.startsWith(item.href + '/');
                             return (
                                 <Link
-                                    key={tab.href}
-                                    href={tab.href}
+                                    key={item.href}
+                                    href={item.href}
                                     onClick={() => setIsSidebarOpen(false)}
                                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${active
                                         ? 'bg-white/15 text-white shadow-md border border-white/5'
@@ -155,9 +226,9 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                                         }`}
                                 >
                                     <div className={`${active ? 'text-white' : 'text-blue-200/50 group-hover:text-white transition-colors'}`}>
-                                        {tab.icon}
+                                        {item.icon}
                                     </div>
-                                    {tab.label}
+                                    {item.label}
                                 </Link>
                             );
                         })}

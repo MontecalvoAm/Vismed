@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { QuotationRecord, updateQuotationStatus } from '@/lib/firestore/quotations';
+import { createAuditLog } from '@/lib/firestore/audit';
 import { Package, User, Activity, Edit3, FileSearch, Trash2, Pencil, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft, Shield, Printer } from 'lucide-react';
 import { useConfirm } from '@/context/ConfirmContext';
 import { useAuth } from '@/context/AuthContext';
@@ -61,7 +62,20 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
     const handleStatusChange = async (id: string, newStatus: string) => {
         setStatusUpdatingId(id);
         try {
+            const q = data.find(r => r.id === id);
             await updateQuotationStatus(id, newStatus as QuotationRecord['Status']);
+            await createAuditLog({
+                Action: 'Updated Status',
+                Module: 'Quotation',
+                RecordID: id,
+                Description: `Status changed to "${newStatus}" for Quotation No: ${q?.DocumentNo || id}`,
+                Metadata: {
+                    PatientName: q?.CustomerName ?? '',
+                    GuarantorName: q?.GuarantorName ?? '',
+                    OldStatus: q?.Status ?? '',
+                    NewStatus: newStatus,
+                }
+            });
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to update status:', error);
@@ -182,6 +196,7 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                                 )}
                                 <th className="px-4 py-4 w-10"></th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Quotation Date</th>
+                                <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Last Update Date</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Client</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Prepared By</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Guarantor</th>
@@ -221,6 +236,18 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                                             <td className="px-5 py-4 whitespace-nowrap text-gray-500 text-xs">
                                                 {q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                                 <div className="text-gray-400">{q.CreatedAt ? new Date(q.CreatedAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : ''}</div>
+                                            </td>
+                                            <td className="px-5 py-4 whitespace-nowrap text-gray-500 text-xs text-center">
+                                                {q.UpdatedAt ? (
+                                                    <>
+                                                        <div>{new Date(q.UpdatedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                                                        <div className="text-gray-400">{new Date(q.UpdatedAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</div>
+                                                    </>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500">
+                                                        Not Updated yet
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-5 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-2">

@@ -58,7 +58,7 @@ export default function ReportsPage() {
             if (qToDel) {
                 await createAuditLog({
                     Action: 'Deleted Quotation',
-                    Module: 'History',
+                    Module: 'Quotation',
                     RecordID: id,
                     Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
                 });
@@ -79,7 +79,7 @@ export default function ReportsPage() {
                 if (qToDel) {
                     await createAuditLog({
                         Action: 'Deleted Quotation (Bulk)',
-                        Module: 'History',
+                        Module: 'Quotation',
                         RecordID: id,
                         Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
                     });

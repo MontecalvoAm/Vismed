@@ -86,10 +86,15 @@ export async function getQuotations(): Promise<QuotationRecord[]> {
         if (data.CreatedAt instanceof Timestamp) {
             formattedDate = data.CreatedAt.toDate().toISOString();
         }
+        let formattedUpdatedDate: string | null = null;
+        if (data.UpdatedAt instanceof Timestamp) {
+            formattedUpdatedDate = data.UpdatedAt.toDate().toISOString();
+        }
         return {
             id: d.id,
             ...data,
             CreatedAt: formattedDate,
+            UpdatedAt: formattedUpdatedDate,
         } as QuotationRecord;
     });
 }
@@ -103,10 +108,15 @@ export async function getQuotationsByGuarantor(guarantorId: string): Promise<Quo
         if (data.CreatedAt instanceof Timestamp) {
             formattedDate = data.CreatedAt.toDate().toISOString();
         }
+        let formattedUpdatedDate: string | null = null;
+        if (data.UpdatedAt instanceof Timestamp) {
+            formattedUpdatedDate = data.UpdatedAt.toDate().toISOString();
+        }
         return {
             id: d.id,
             ...data,
             CreatedAt: formattedDate,
+            UpdatedAt: formattedUpdatedDate,
         } as QuotationRecord;
     });
 }
@@ -119,7 +129,11 @@ export async function getQuotationById(id: string): Promise<QuotationRecord | nu
     if (data.CreatedAt instanceof Timestamp) {
         formattedDate = data.CreatedAt.toDate().toISOString();
     }
-    return { id: snap.id, ...data, CreatedAt: formattedDate } as QuotationRecord;
+    let formattedUpdatedDate: string | null = null;
+    if (data.UpdatedAt instanceof Timestamp) {
+        formattedUpdatedDate = data.UpdatedAt.toDate().toISOString();
+    }
+    return { id: snap.id, ...data, CreatedAt: formattedDate, UpdatedAt: formattedUpdatedDate } as QuotationRecord;
 }
 
 export async function updateQuotationStatus(

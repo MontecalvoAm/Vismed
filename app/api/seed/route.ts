@@ -66,11 +66,12 @@ export async function GET() {
         // 3.5 Create Initial Modules
         const appModules = [
             { ModuleID: 'quotations', ModuleName: 'Quotation', Label: 'Quotation', Path: '/quotation', Icon: 'LayoutDashboard', SortOrder: 1 },
-            { ModuleID: 'reports', ModuleName: 'Reports', Label: 'Reports', Path: '/reports', Icon: 'ClipboardList', SortOrder: 2 },
+            { ModuleID: 'guarantors', ModuleName: 'Guarantors', Label: 'Guarantors', Path: '/guarantors', Icon: 'Shield', SortOrder: 2 },
             { ModuleID: 'departments', ModuleName: 'Departments', Label: 'Departments', Path: '/departments', Icon: 'Building2', SortOrder: 3 },
-            { ModuleID: 'guarantors', ModuleName: 'Guarantors', Label: 'Guarantors', Path: '/guarantors', Icon: 'Shield', SortOrder: 4 },
-            { ModuleID: 'services', ModuleName: 'Services', Label: 'Items and Services', Path: '/services', Icon: 'Stethoscope', SortOrder: 5 },
-            { ModuleID: 'users', ModuleName: 'Users', Label: 'Users', Path: '/users', Icon: 'Users', SortOrder: 6 }
+            { ModuleID: 'services', ModuleName: 'Services', Label: 'Items and Services', Path: '/services', Icon: 'Stethoscope', SortOrder: 4 },
+            { ModuleID: 'reports', ModuleName: 'Reports', Label: 'Reports', Path: '/reports', Icon: 'ClipboardList', SortOrder: 5 },
+            { ModuleID: 'logs', ModuleName: 'Logs', Label: 'Logs', Path: '/reports/audit-logs', Icon: 'History', SortOrder: 6 },
+            { ModuleID: 'users', ModuleName: 'Users', Label: 'Users', Path: '/users', Icon: 'Users', SortOrder: 7 }
         ];
 
         for (const mod of appModules) {

@@ -221,9 +221,10 @@ export default function ServiceManager() {
                 setUploadProgress({ current: deptsProcessed, total: uniqueRawDepts.size, status: 'Preparing Departments...' });
             }
 
-            // 2) Second Pass: Deduplicate all valid services
+            // 2) Second Pass: Categorize valid services into new and existing (to update)
             setUploadProgress({ current: 0, total: 1, status: 'Processing Data...' });
             const validServices: any[] = [];
+            const servicesToUpdate: { id: string, data: any }[] = [];
             const newlyCreatedServices: Set<string> = new Set();
 
             for (const row of uploadData) {
@@ -244,41 +245,55 @@ export default function ServiceManager() {
                     }
                 }
 
-                if (!deptId) continue; // Unlikely to happen due to step 1, but safe fallback
+                if (!deptId) continue;
 
-                const existsInDb = services.some(s => s.DepartmentID === deptId && s.ServiceName.toLowerCase() === lowerServiceName);
+                const existingService = services.find(s => s.DepartmentID === deptId && s.ServiceName.toLowerCase() === lowerServiceName);
                 const uniqueKey = `${deptId}:${lowerServiceName}`;
 
-                if (existsInDb || newlyCreatedServices.has(uniqueKey)) continue;
+                if (newlyCreatedServices.has(uniqueKey)) continue;
 
-                validServices.push({
+                const serviceData = {
                     ServiceName: serviceName,
                     DepartmentID: deptId,
                     Description: String(row.Description || ''),
                     Price: Number(row.Price || 0),
                     Unit: String(row.Unit || 'per session'),
                     IsActive: true
-                });
+                };
+
+                if (existingService) {
+                    servicesToUpdate.push({ id: existingService.ServiceID, data: serviceData });
+                } else {
+                    validServices.push(serviceData);
+                }
 
                 newlyCreatedServices.add(uniqueKey);
             }
 
-            // 3) Third Pass: Concurrent batch uploads of valid services
-            setUploadProgress({ current: 0, total: validServices.length, status: 'Uploading Services...' });
+            // 3) Third Pass: Concurrent batch uploads and updates
+            const totalTasks = validServices.length + servicesToUpdate.length;
+            setUploadProgress({ current: 0, total: totalTasks, status: 'Saving Services...' });
             const chunkSize = 50;
-            let currentUploaded = 0;
+            let currentProcessed = 0;
 
             for (let i = 0; i < validServices.length; i += chunkSize) {
                 const chunk = validServices.slice(i, i + chunkSize);
                 await Promise.all(chunk.map(data => addService(data, createdBy)));
-                currentUploaded += chunk.length;
-                setUploadProgress({ current: currentUploaded, total: validServices.length, status: 'Uploading Services...' });
+                currentProcessed += chunk.length;
+                setUploadProgress({ current: currentProcessed, total: totalTasks, status: 'Uploading New Services...' });
+            }
+
+            for (let i = 0; i < servicesToUpdate.length; i += chunkSize) {
+                const chunk = servicesToUpdate.slice(i, i + chunkSize);
+                await Promise.all(chunk.map(item => updateService(item.id, item.data, createdBy)));
+                currentProcessed += chunk.length;
+                setUploadProgress({ current: currentProcessed, total: totalTasks, status: 'Updating Existing Services...' });
             }
 
             setUploadData(null);
             setUploadProgress(null);
             await load();
-            setFeedback({ isOpen: true, type: 'success', title: 'Upload Complete', message: 'Services successfully uploaded and created.' });
+            setFeedback({ isOpen: true, type: 'success', title: 'Upload Complete', message: `Successfully added ${validServices.length} and updated ${servicesToUpdate.length} services.` });
         } catch (err) {
             setError('Failed to batch save uploaded data.');
             setFeedback({ isOpen: true, type: 'error', title: 'Upload Failed', message: 'Failed to batch save uploaded data.' });
@@ -437,7 +452,7 @@ export default function ServiceManager() {
                                         />
                                     </th>
                                     <th className="px-5 py-3.5 text-left font-semibold text-slate-600">Service Name</th>
-                                    <th className="px-5 py-3.5 text-left font-semibold text-slate-600 hidden md:table-cell">Department</th>
+                                    <th className="px-5 py-3.5 text-left font-semibold text-slate-600 hidden md:table-cell">Department Name</th>
                                     <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Price</th>
                                     {(perms?.CanEdit || perms?.CanDelete) && (
                                         <th className="px-5 py-3.5 text-right font-semibold text-slate-600">Actions</th>

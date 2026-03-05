@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { QuotationRecord, updateQuotation, QuotationItem } from '@/lib/firestore/quotations';
 import { createAuditLog } from '@/lib/firestore/audit';
 import { useConfirm } from '@/context/ConfirmContext';
+import { useAuth } from '@/context/AuthContext';
 import { X, Save, Clock, Package, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 import { isPharmacyDepartment, determineStatusFromTracking, isItemTrackingCompleted } from '@/lib/utils/quotationStatus';
@@ -18,6 +19,7 @@ interface TrackingModalProps {
 
 export default function TrackingModal({ isOpen, onClose, quotation, initialItemIndex, onSaveSuccess }: TrackingModalProps) {
     const { alert } = useConfirm();
+    const { user } = useAuth();
     const [items, setItems] = useState<QuotationItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
@@ -98,8 +100,15 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
                     Module: 'Quotation',
                     RecordID: quotation.id,
                     Description: `Updated usage tracking on ${changes.length} item(s)`,
-                    OldValues: { Items: quotation.Items.map(i => ({ Id: i.Id, Used: i.Used || 0 })) },
-                    NewValues: { Items: items.map(i => ({ Id: i.Id, Used: i.Used || 0 })) },
+                    OldValues: { Items: quotation.Items.map(i => ({ Id: i.Id, Name: i.Name, Qty: i.Quantity, Used: i.Used || 0 })) },
+                    NewValues: { Items: items.map(i => ({ Id: i.Id, Name: i.Name, Qty: i.Quantity, Used: i.Used || 0 })) },
+                    UserID: user?.UserID,
+                    Metadata: {
+                        PatientName: quotation.CustomerName,
+                        GuarantorName: quotation.GuarantorName,
+                        Status: updatedStatus,
+                        EditedBy: user ? `${user.FirstName} ${user.LastName}` : 'Unknown',
+                    }
                 });
             }
 

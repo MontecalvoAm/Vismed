@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getQuotationById, QuotationRecord } from '@/lib/firestore/quotations';
 import BatchPrintRenderer from '@/components/reports/BatchPrintRenderer';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2, ArrowLeft, Printer } from 'lucide-react';
 
-export default function BatchPrintPage() {
+function BatchPrintContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { user } = useAuth();
@@ -143,5 +143,18 @@ export default function BatchPrintPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function BatchPrintPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-slate-500 font-medium">Preparing documents...</p>
+            </div>
+        }>
+            <BatchPrintContent />
+        </Suspense>
     );
 }

@@ -156,3 +156,37 @@ export async function getSecurityLogs(options?: {
 
     return logs;
 }
+
+/**
+ * Get usage logs (All CRUD Actions for Quotations)
+ */
+export async function getUsageLogs(): Promise<(AuditLogEntry & { id: string })[]> {
+    const q = query(
+        collection(db, COL),
+        where('Module', '==', 'Quotation')
+    );
+    const snap = await getDocs(q);
+    const logs = snap.docs.map(d => {
+        const data = d.data();
+        return {
+            id: d.id,
+            ...data,
+            CreatedAt: data.CreatedAt instanceof Timestamp ? data.CreatedAt.toDate().toISOString() : null,
+        } as AuditLogEntry & { id: string };
+    });
+    // Sort by date descending
+    logs.sort((a, b) => {
+        if (!a.CreatedAt) return 1;
+        if (!b.CreatedAt) return -1;
+        return new Date(b.CreatedAt as string).getTime() - new Date(a.CreatedAt as string).getTime();
+    });
+    return logs;
+}
+
+/**
+ * Delete an audit log
+ */
+export async function deleteAuditLog(id: string): Promise<void> {
+    const { deleteDoc, doc } = await import('firebase/firestore');
+    await deleteDoc(doc(db, COL, id));
+}

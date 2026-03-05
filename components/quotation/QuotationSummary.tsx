@@ -86,7 +86,18 @@ export default function QuotationSummary({
                 });
             } else {
                 const { addQuotation } = await import('@/lib/firestore/quotations');
-                await addQuotation(recordFormat);
+                const { createAuditLog } = await import('@/lib/firestore/audit');
+                const newId = await addQuotation(recordFormat);
+                await createAuditLog({
+                    Action: 'Created Quotation',
+                    Module: 'Quotation',
+                    RecordID: newId,
+                    Description: `Created Quotation Document No: ${recordFormat.DocumentNo || newId}`,
+                    Metadata: {
+                        PatientName: recordFormat.CustomerName,
+                        GuarantorName: recordFormat.GuarantorName ?? '',
+                    }
+                });
             }
             return true;
         } catch (dbErr) {
