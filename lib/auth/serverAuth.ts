@@ -7,6 +7,7 @@ export type ActionType = 'CanView' | 'CanAdd' | 'CanEdit' | 'CanDelete';
 export interface ValidatedUser {
     UserID: string;
     RoleID: string;
+    dbUser?: any;
     Permissions: Record<string, {
         CanView: boolean;
         CanAdd: boolean;
@@ -83,6 +84,7 @@ export async function requireAuth(req: NextRequest, moduleName: string, action: 
             user: {
                 UserID,
                 RoleID,
+                dbUser: userRecord,
                 Permissions: resolved
             }
         };

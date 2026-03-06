@@ -53,9 +53,25 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isReportsOpen, setIsReportsOpen] = useState(pathname.startsWith('/reports'));
+    const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
     const [modules, setModules] = useState<AppModule[]>([]);
     const [modulesLoading, setModulesLoading] = useState(true);
+
+    // Close user dropdown if clicked outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('#user-dropdown-container')) {
+                setIsUserDropdownOpen(false);
+            }
+        };
+
+        if (isUserDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isUserDropdownOpen]);
 
     useEffect(() => {
         let isMounted = true;
@@ -277,15 +293,55 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                         {pageTitle}
                     </div>
 
-                    {/* Right: Logout Only */}
-                    <div className="flex items-center gap-4">
-                        <button
-                            className="flex items-center gap-2 text-sm font-medium bg-white text-slate-700 hover:bg-brand-bright-red/10 hover:text-brand-bright-red hover:border-brand-bright-red/30 border border-slate-200 transition-all px-3 py-1.5 rounded-lg shadow-sm"
-                            onClick={logout}
-                        >
-                            <LogOut className="w-4 h-4" />
-                            <span className="hidden sm:inline">Logout</span>
-                        </button>
+                    {/* Right: User Dropdown */}
+                    <div className="flex items-center gap-4 relative" id="user-dropdown-container">
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                                className="flex items-center gap-2 text-sm font-medium bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-all px-2 py-1.5 rounded-lg shadow-sm"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-brand-lime-green/20 text-brand-lime-green flex items-center justify-center text-sm font-bold shrink-0">
+                                    {user?.FirstName?.[0] || ''}{user?.LastName?.[0] || ''}
+                                </div>
+                                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {/* Dropdown Menu Overlay */}
+                            {isUserDropdownOpen && (
+                                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="px-4 py-3 border-b border-slate-100">
+                                        <p className="text-sm font-semibold text-slate-800 truncate">
+                                            {user?.FirstName || ''} {user?.LastName || ''}
+                                        </p>
+                                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                                            {user?.RoleName || 'User'}
+                                        </p>
+                                    </div>
+                                    <div className="p-1.5 space-y-1">
+                                        <Link
+                                            href="/settings"
+                                            onClick={() => setIsUserDropdownOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors w-full text-left"
+                                        >
+                                            <div className="bg-slate-100 p-1.5 rounded-md text-slate-500">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
+                                            </div>
+                                            Settings
+                                        </Link>
+                                        <div className="h-px bg-slate-100 my-1 mx-2" />
+                                        <button
+                                            onClick={logout}
+                                            className="flex items-center gap-2.5 px-3 py-2 text-sm text-brand-bright-red hover:bg-red-50 rounded-lg transition-colors w-full text-left"
+                                        >
+                                            <div className="bg-red-100 p-1.5 rounded-md">
+                                                <LogOut className="w-3.5 h-3.5" />
+                                            </div>
+                                            Logout
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </header>
 
