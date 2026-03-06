@@ -14,6 +14,7 @@ import {
 import UserOverrideModal from '@/components/users/UserOverrideModal';
 import { useAuth } from '@/context/AuthContext';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
+import UsersFilter from '@/components/users/UsersFilter';
 
 type ActiveTab = 'users' | 'roles';
 
@@ -39,6 +40,9 @@ export default function UsersPage() {
     // Filter & Pagination state
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [userSearchTerm, setUserSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+
     // Role filtering & Search
     const [roleSearchTerm, setRoleSearchTerm] = useState('');
     const [roleCurrentPage, setRoleCurrentPage] = useState(1);
@@ -156,6 +160,21 @@ export default function UsersPage() {
 
     const filteredUsers = users.filter((user) => {
         if (roleFilter !== 'all' && user.RoleID !== roleFilter) return false;
+
+        if (statusFilter !== 'all') {
+            const isActiveFilter = statusFilter === 'active';
+            const isUserActive = user.IsActive !== false;
+            if (isUserActive !== isActiveFilter) return false;
+        }
+
+        if (userSearchTerm.trim() !== '') {
+            const term = userSearchTerm.toLowerCase();
+            const fullName = `${user.FirstName} ${user.LastName}`.toLowerCase();
+            if (!fullName.includes(term) && !(user.Email || '').toLowerCase().includes(term)) {
+                return false;
+            }
+        }
+
         return true;
     });
 
@@ -206,66 +225,25 @@ export default function UsersPage() {
 
                 {/* ── USERS TAB ────────────────────────────────────────── */}
                 {activeTab === 'users' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                        {/* Toolbar: Filter */}
-                        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-                            <div className="relative w-full sm:w-auto">
-                                <button
-                                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                                    className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none w-full sm:w-auto justify-between"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <Filter className="w-4 h-4" />
-                                        Role: {roleFilter === 'all' ? 'All' : getRoleName(roleFilter)}
-                                    </div>
-                                </button>
-
-                                {isFilterOpen && (
-                                    <div className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                                        <div className="p-2 border-b border-gray-100">
-                                            <div className="relative">
-                                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search roles..."
-                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                                                    value={roleSearchTerm}
-                                                    onChange={(e) => setRoleSearchTerm(e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                        <ul className="max-h-60 overflow-y-auto p-1">
-                                            <li>
-                                                <button
-                                                    onClick={() => { setRoleFilter('all'); setIsFilterOpen(false); setCurrentPage(1); }}
-                                                    className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 ${roleFilter === 'all' ? 'bg-primary/5 text-primary font-medium' : 'text-gray-700'}`}
-                                                >
-                                                    All Roles
-                                                </button>
-                                            </li>
-                                            {filteredRoles.map(role => (
-                                                <li key={role.RoleID}>
-                                                    <button
-                                                        onClick={() => { setRoleFilter(role.RoleID); setIsFilterOpen(false); setCurrentPage(1); }}
-                                                        className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 ${roleFilter === role.RoleID ? 'bg-primary/5 text-primary font-medium' : 'text-gray-700'}`}
-                                                    >
-                                                        {role.RoleName}
-                                                    </button>
-                                                </li>
-                                            ))}
-                                            {filteredRoles.length === 0 && (
-                                                <li className="px-3 py-2 text-sm text-gray-500 text-center">No roles found</li>
-                                            )}
-                                        </ul>
-                                    </div>
-                                )}
+                    <div className="space-y-4">
+                        {/* Toolbar: Filter & Actions */}
+                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                            <div className="flex-1 w-full transition-all">
+                                <UsersFilter
+                                    searchTerm={userSearchTerm}
+                                    onSearchChange={(v) => { setUserSearchTerm(v); setCurrentPage(1); }}
+                                    roleFilter={roleFilter}
+                                    onRoleChange={(v) => { setRoleFilter(v); setCurrentPage(1); }}
+                                    availableRoles={roles.map(r => ({ id: r.RoleID, name: r.RoleName }))}
+                                    statusFilter={statusFilter}
+                                    onStatusChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}
+                                />
                             </div>
-
                             {perms?.CanAdd && (
-                                <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                                <div className="w-full xl:w-auto flex justify-end shrink-0">
                                     <button
                                         onClick={handleAddUser}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
                                     >
                                         <Plus className="w-4 h-4" /> Add User
                                     </button>
@@ -273,145 +251,147 @@ export default function UsersPage() {
                             )}
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                <thead className="bg-gray-50/80">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Name</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
-                                        {(perms?.CanEdit || perms?.CanDelete) && (
-                                            <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
-                                        )}
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100">
-                                    {usersLoading ? (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead className="bg-gray-50/80">
                                         <tr>
-                                            <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                                                Loading users...
-                                            </td>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Name</th>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
+                                            {(perms?.CanEdit || perms?.CanDelete) && (
+                                                <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
+                                            )}
                                         </tr>
-                                    ) : paginatedUsers.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                                                {users.length === 0 ? 'No users found. Click "Add User" to get started.' : 'No users match the selected filters.'}
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        paginatedUsers.map((user) => (
-                                            <tr key={user.UserID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-9 w-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                                                            {user.FirstName?.charAt(0)}{user.LastName?.charAt(0)}
-                                                        </div>
-                                                        <span className="text-gray-900 font-medium">
-                                                            {user.FirstName} {user.LastName}
-                                                        </span>
-                                                    </div>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-100">
+                                        {usersLoading ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                                                    Loading users...
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.Email}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                                                        <Shield className="w-3 h-3" />
-                                                        {getRoleName(user.RoleID)}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${user.IsActive !== false
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-red-100 text-red-700'
-                                                        }`}>
-                                                        {user.IsActive !== false
-                                                            ? <><CheckCircle className="w-3 h-3" /> Active</>
-                                                            : <><XCircle className="w-3 h-3" /> Inactive</>
-                                                        }
-                                                    </span>
-                                                </td>
-                                                {(perms?.CanEdit || perms?.CanDelete) && (
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                        {perms?.CanEdit && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleEditOverrides(user)}
-                                                                    className="text-amber-500 hover:text-amber-600 mr-4 transition"
-                                                                    title="Custom Permissions"
-                                                                >
-                                                                    <Key className="w-4 h-4" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleEditUser(user)}
-                                                                    className="text-primary hover:text-primary/70 mr-4 transition"
-                                                                    title="Edit user"
-                                                                >
-                                                                    <Edit2 className="w-4 h-4" />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                        {perms?.CanDelete && (
-                                                            <button
-                                                                onClick={() => handleDeleteUser(user)}
-                                                                className="text-red-500 hover:text-red-600 transition"
-                                                                title="Delete user"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                )}
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Pagination footer */}
-                        <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
-                            <div className="flex flex-col sm:flex-row items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-500">Show</span>
-                                    <select
-                                        value={rowsPerPage}
-                                        onChange={(e) => {
-                                            setRowsPerPage(Number(e.target.value));
-                                            setCurrentPage(1);
-                                        }}
-                                        className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
-                                    >
-                                        <option value={5}>5</option>
-                                        <option value={10}>10</option>
-                                        <option value={20}>20</option>
-                                        <option value={50}>50</option>
-                                    </select>
-                                    <span className="text-sm text-gray-500">entries</span>
-                                </div>
-                                <span className="text-gray-500 text-center sm:text-left">
-                                    Showing {usersLoading || filteredUsers.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
-                                    {roleFilter !== 'all' && ` (filtered from ${users.length} total)`}
-                                </span>
+                                        ) : paginatedUsers.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                                                    {users.length === 0 ? 'No users found. Click "Add User" to get started.' : 'No users match the selected filters.'}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedUsers.map((user) => (
+                                                <tr key={user.UserID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-9 w-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                                                                {user.FirstName?.charAt(0)}{user.LastName?.charAt(0)}
+                                                            </div>
+                                                            <span className="text-gray-900 font-medium">
+                                                                {user.FirstName} {user.LastName}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.Email}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                                            <Shield className="w-3 h-3" />
+                                                            {getRoleName(user.RoleID)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${user.IsActive !== false
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : 'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            {user.IsActive !== false
+                                                                ? <><CheckCircle className="w-3 h-3" /> Active</>
+                                                                : <><XCircle className="w-3 h-3" /> Inactive</>
+                                                            }
+                                                        </span>
+                                                    </td>
+                                                    {(perms?.CanEdit || perms?.CanDelete) && (
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                            {perms?.CanEdit && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleEditOverrides(user)}
+                                                                        className="text-amber-500 hover:text-amber-600 mr-4 transition"
+                                                                        title="Custom Permissions"
+                                                                    >
+                                                                        <Key className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleEditUser(user)}
+                                                                        className="text-primary hover:text-primary/70 mr-4 transition"
+                                                                        title="Edit user"
+                                                                    >
+                                                                        <Edit2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                            {perms?.CanDelete && (
+                                                                <button
+                                                                    onClick={() => handleDeleteUser(user)}
+                                                                    className="text-red-500 hover:text-red-600 transition"
+                                                                    title="Delete user"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1 || usersLoading || filteredUsers.length === 0}
-                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <span className="px-3 py-1 font-medium text-gray-700">
-                                    Page {currentPage} of {totalPages}
-                                </span>
-                                <button
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages || usersLoading || filteredUsers.length === 0}
-                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
+                            {/* Pagination footer */}
+                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-500">Show</span>
+                                        <select
+                                            value={rowsPerPage}
+                                            onChange={(e) => {
+                                                setRowsPerPage(Number(e.target.value));
+                                                setCurrentPage(1);
+                                            }}
+                                            className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                        </select>
+                                        <span className="text-sm text-gray-500">entries</span>
+                                    </div>
+                                    <span className="text-gray-500 text-center sm:text-left">
+                                        Showing {usersLoading || filteredUsers.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
+                                        {roleFilter !== 'all' && ` (filtered from ${users.length} total)`}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1 || usersLoading || filteredUsers.length === 0}
+                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <span className="px-3 py-1 font-medium text-gray-700">
+                                        Page {currentPage} of {totalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages || usersLoading || filteredUsers.length === 0}
+                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -419,25 +399,27 @@ export default function UsersPage() {
 
                 {/* ── ROLES TAB ────────────────────────────────────────── */}
                 {activeTab === 'roles' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-                            <div className="relative w-full sm:max-w-md">
-                                <input
-                                    type="search"
-                                    placeholder="Search roles..."
-                                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
-                                    value={roleSearchTerm}
-                                    onChange={(e) => setRoleSearchTerm(e.target.value)}
-                                />
-                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <Search className="w-4 h-4" />
+                    <div className="space-y-4">
+                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                            <div className="flex-1 w-full bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
+                                <div className="relative w-full max-w-md">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Search className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Search roles..."
+                                        className="block w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
+                                        value={roleSearchTerm}
+                                        onChange={(e) => { setRoleSearchTerm(e.target.value); setRoleCurrentPage(1); }}
+                                    />
                                 </div>
                             </div>
                             {perms?.CanAdd && (
-                                <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                                <div className="w-full xl:w-auto flex justify-end shrink-0">
                                     <button
                                         onClick={handleAddRole}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 focus:ring-2 focus:ring-primary transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
                                     >
                                         <Plus className="w-4 h-4" /> Add Role
                                     </button>
@@ -445,126 +427,128 @@ export default function UsersPage() {
                             )}
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                <thead className="bg-gray-50/80">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role Name</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Description</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100">
-                                    {rolesLoading ? (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead className="bg-gray-50/80">
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                                Loading roles...
-                                            </td>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role Name</th>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Description</th>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
+                                            <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
                                         </tr>
-                                    ) : paginatedRoles.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                                No roles found.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        paginatedRoles.map((role) => (
-                                            <tr key={role.RoleID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
-                                                            <ShieldCheck className="w-4 h-4 text-purple-600" />
-                                                        </div>
-                                                        <span className="text-gray-900 font-semibold">{role.RoleName}</span>
-                                                    </div>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-100">
+                                        {rolesLoading ? (
+                                            <tr>
+                                                <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                                                    Loading roles...
                                                 </td>
-                                                <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
-                                                    {role.Description || <span className="italic text-gray-300">No description</span>}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${role.IsActive !== false
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-red-100 text-red-700'
-                                                        }`}>
-                                                        {role.IsActive !== false
-                                                            ? <><CheckCircle className="w-3 h-3" /> Active</>
-                                                            : <><XCircle className="w-3 h-3" /> Inactive</>
-                                                        }
-                                                    </span>
-                                                </td>
-                                                {(perms?.CanEdit || perms?.CanDelete) && (
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                        {perms?.CanEdit && (
-                                                            <button
-                                                                onClick={() => handleEditRole(role)}
-                                                                className="text-primary hover:text-primary/70 mr-4 transition"
-                                                                title="Edit role"
-                                                            >
-                                                                <Edit2 className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                        {perms?.CanDelete && (
-                                                            <button
-                                                                onClick={() => handleDeleteRole(role)}
-                                                                className="text-red-500 hover:text-red-600 transition"
-                                                                title="Delete role"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                )}
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Pagination footer */}
-                        <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
-                            <div className="flex flex-col sm:flex-row items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-500">Show</span>
-                                    <select
-                                        value={roleRowsPerPage}
-                                        onChange={(e) => {
-                                            setRoleRowsPerPage(Number(e.target.value));
-                                            setRoleCurrentPage(1);
-                                        }}
-                                        className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
-                                    >
-                                        <option value={5}>5</option>
-                                        <option value={10}>10</option>
-                                        <option value={20}>20</option>
-                                        <option value={50}>50</option>
-                                    </select>
-                                    <span className="text-sm text-gray-500">entries</span>
-                                </div>
-                                <span className="text-gray-500 text-center sm:text-left">
-                                    Showing {rolesLoading || filteredRoles.length === 0 ? 0 : (roleCurrentPage - 1) * roleRowsPerPage + 1} to {Math.min(roleCurrentPage * roleRowsPerPage, filteredRoles.length)} of {filteredRoles.length} entries
-                                </span>
+                                        ) : paginatedRoles.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                                                    No roles found.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedRoles.map((role) => (
+                                                <tr key={role.RoleID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+                                                                <ShieldCheck className="w-4 h-4 text-purple-600" />
+                                                            </div>
+                                                            <span className="text-gray-900 font-semibold">{role.RoleName}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
+                                                        {role.Description || <span className="italic text-gray-300">No description</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${role.IsActive !== false
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : 'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            {role.IsActive !== false
+                                                                ? <><CheckCircle className="w-3 h-3" /> Active</>
+                                                                : <><XCircle className="w-3 h-3" /> Inactive</>
+                                                            }
+                                                        </span>
+                                                    </td>
+                                                    {(perms?.CanEdit || perms?.CanDelete) && (
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                            {perms?.CanEdit && (
+                                                                <button
+                                                                    onClick={() => handleEditRole(role)}
+                                                                    className="text-primary hover:text-primary/70 mr-4 transition"
+                                                                    title="Edit role"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                            {perms?.CanDelete && (
+                                                                <button
+                                                                    onClick={() => handleDeleteRole(role)}
+                                                                    className="text-red-500 hover:text-red-600 transition"
+                                                                    title="Delete role"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setRoleCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={roleCurrentPage === 1 || rolesLoading || filteredRoles.length === 0}
-                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <span className="px-3 py-1 font-medium text-gray-700">
-                                    Page {roleCurrentPage} of {roleTotalPages}
-                                </span>
-                                <button
-                                    onClick={() => setRoleCurrentPage(p => Math.min(roleTotalPages, p + 1))}
-                                    disabled={roleCurrentPage === roleTotalPages || rolesLoading || filteredRoles.length === 0}
-                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
+                            {/* Pagination footer */}
+                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-500">Show</span>
+                                        <select
+                                            value={roleRowsPerPage}
+                                            onChange={(e) => {
+                                                setRoleRowsPerPage(Number(e.target.value));
+                                                setRoleCurrentPage(1);
+                                            }}
+                                            className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                        </select>
+                                        <span className="text-sm text-gray-500">entries</span>
+                                    </div>
+                                    <span className="text-gray-500 text-center sm:text-left">
+                                        Showing {rolesLoading || filteredRoles.length === 0 ? 0 : (roleCurrentPage - 1) * roleRowsPerPage + 1} to {Math.min(roleCurrentPage * roleRowsPerPage, filteredRoles.length)} of {filteredRoles.length} entries
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setRoleCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={roleCurrentPage === 1 || rolesLoading || filteredRoles.length === 0}
+                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <span className="px-3 py-1 font-medium text-gray-700">
+                                        Page {roleCurrentPage} of {roleTotalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setRoleCurrentPage(p => Math.min(roleTotalPages, p + 1))}
+                                        disabled={roleCurrentPage === roleTotalPages || rolesLoading || filteredRoles.length === 0}
+                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

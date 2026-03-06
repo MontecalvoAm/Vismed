@@ -105,7 +105,7 @@ export default function QuotationPage() {
                                     `}>
                                         {isDone ? <CheckCircle2 className="w-6 h-6" /> : i + 1}
                                     </div>
-                                    <div className={`mt-3 text-sm font-medium absolute top-10 whitespace-nowrap transition-colors duration-300
+                                    <div className={`mt-3 text-[10px] md:text-sm font-medium absolute top-10 whitespace-nowrap transition-colors duration-300
                                         ${isActive ? 'text-brand-dark-blue font-bold' : (isDone ? 'text-slate-700' : 'text-slate-400')}
                                     `}>
                                         {label}

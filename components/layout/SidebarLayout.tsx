@@ -159,7 +159,7 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
             <aside className={`
                 fixed md:sticky top-0 left-0 z-50 h-[100dvh] w-64 bg-[#234b8c] text-white shadow-xl transition-transform duration-300 ease-in-out
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-                flex flex-col relative
+                flex flex-col
             `}>
                 {/* Subtle overlay to soften the blue without losing it */}
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none" />
