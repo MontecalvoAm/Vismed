@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
+import { adminDb } from '@/lib/firebaseAdmin';
 
 // Session durations
 const SESSION_DURATION = {
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { idToken, rememberMe } = body;
+        const { idToken, rememberMe, isLogin } = body;
 
         if (!idToken || typeof idToken !== 'string') {
             return NextResponse.json({ error: 'Missing or invalid token.' }, { status: 400 });
@@ -44,6 +45,33 @@ export async function POST(req: NextRequest) {
         const verifyData = await verifyRes.json();
         if (!verifyData.users || verifyData.users.length === 0) {
             return NextResponse.json({ error: 'User not found.' }, { status: 401 });
+        }
+
+        const uid = verifyData.users[0].localId;
+
+        // SINGLE SESSION LOGIC
+        let sessionId = req.cookies.get('vm_session_id')?.value;
+
+        if (isLogin) {
+            // It's a fresh login, generate a NEW session ID
+            sessionId = crypto.randomUUID();
+            await adminDb.collection('M_User').doc(uid).update({
+                CurrentSessionID: sessionId
+            });
+        } else {
+            // It's a token refresh (onAuthStateChanged / session renew).
+            // We must have a valid session id cookie that matches the database
+            if (!sessionId) {
+                // Return 401 to log the user out on the client side
+                return NextResponse.json({ error: 'Session invalidated.' }, { status: 401 });
+            }
+
+            const userDoc = await adminDb.collection('M_User').doc(uid).get();
+            const currentDbSessionId = userDoc.data()?.CurrentSessionID;
+
+            if (currentDbSessionId !== sessionId) {
+                return NextResponse.json({ error: 'Session invalidated.' }, { status: 401 });
+            }
         }
 
         // Determine session duration based on "Remember Me"
@@ -72,6 +100,9 @@ export async function POST(req: NextRequest) {
         }
 
         response.cookies.set('vm_token', idToken, cookieOptions);
+        if (sessionId) {
+            response.cookies.set('vm_session_id', sessionId, cookieOptions);
+        }
 
         return response;
     } catch (err) {

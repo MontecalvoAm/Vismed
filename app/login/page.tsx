@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import LoginForm from '@/components/login/LoginForm';
 import Image from 'next/image';
 
@@ -41,7 +42,9 @@ export default function LoginPage() {
                 </div>
 
                 <div className="w-full">
-                    <LoginForm />
+                    <Suspense fallback={<div className="text-center text-neutral-400 py-10">Loading...</div>}>
+                        <LoginForm />
+                    </Suspense>
                 </div>
 
                 <div className="mt-10 text-xs text-neutral-500 font-medium tracking-wide">

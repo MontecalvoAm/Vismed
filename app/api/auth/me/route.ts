@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     const token = req.cookies.get('vm_token')?.value;
+    const sessionId = req.cookies.get('vm_session_id')?.value;
 
     if (!token) {
         return NextResponse.json({ authenticated: false, error: 'Unauthorized' }, { status: 200 });
@@ -34,9 +35,9 @@ export async function GET(req: NextRequest) {
 
         const UserID = decodedToken.uid;
 
-        // 2. Return cached result if still fresh (Firestore reads skipped entirely)
+        // 2. Return cached result if still fresh AND session IDs match
         const cached = permCache.get(UserID);
-        if (cached && Date.now() < cached.expiresAt) {
+        if (cached && Date.now() < cached.expiresAt && cached.sessionId === sessionId) {
             return NextResponse.json(cached.data);
         }
 
@@ -55,6 +56,15 @@ export async function GET(req: NextRequest) {
         const userRecord = userDoc.data()!;
         if (!userRecord.IsActive) {
             return NextResponse.json({ error: 'Account is inactive.' }, { status: 403 });
+        }
+
+        // SINGLE-USER LOGIN CHECK: Verify Session ID
+        if (userRecord.CurrentSessionID && userRecord.CurrentSessionID !== sessionId) {
+            return NextResponse.json({
+                authenticated: false,
+                sessionInvalidated: true,
+                error: 'Logged in from another device. Your session has ended.'
+            }, { status: 200 });
         }
 
         const RoleID: string = userRecord.RoleID;
@@ -102,8 +112,8 @@ export async function GET(req: NextRequest) {
             Permissions: resolved,
         };
 
-        // 7. Store in cache for 60 seconds
-        permCache.set(UserID, { data: responseData, expiresAt: Date.now() + CACHE_TTL_MS });
+        // 7. Store in cache for 60 seconds (include sessionId for comparison)
+        permCache.set(UserID, { data: responseData, expiresAt: Date.now() + CACHE_TTL_MS, sessionId });
 
         return NextResponse.json(responseData);
     } catch (err: any) {

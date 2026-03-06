@@ -23,7 +23,7 @@ export async function loginWithFirebase(email: string, password: string, remembe
     const res = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, rememberMe }),
+        body: JSON.stringify({ idToken, rememberMe, isLogin: true }),
     });
 
     if (!res.ok) {

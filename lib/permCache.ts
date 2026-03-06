@@ -7,6 +7,7 @@
 interface CacheEntry {
     data: object;
     expiresAt: number;
+    sessionId?: string;
 }
 
 const globalAny: any = global;

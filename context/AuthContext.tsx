@@ -69,16 +69,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const data = await res.json();
                 console.log("[AuthContext] LIVE Current Permissions loaded:", data.Permissions);
 
+                if (data.sessionInvalidated) {
+                    console.warn('[AuthContext] Session invalidated from another device. Logging out...');
+                    await logoutFirebase();
+                    setUser(null);
+                    window.location.href = '/login?reason=session_invalidated';
+                    return;
+                }
+
                 // If token is expired, force refresh and retry once
                 if (data.tokenExpired && auth.currentUser && retryCount < MAX_RETRIES) {
                     console.log('[AuthContext] Token expired, refreshing...');
                     try {
                         const idToken = await auth.currentUser.getIdToken(true);
-                        await fetch('/api/auth/session', {
+                        const refreshRes = await fetch('/api/auth/session', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ idToken }),
+                            body: JSON.stringify({ idToken, isLogin: false }),
                         });
+
+                        if (refreshRes.status === 401) {
+                            console.warn('[AuthContext] Session invalidated during refresh. Logging out...');
+                            await logoutFirebase();
+                            setUser(null);
+                            window.location.href = '/login?reason=session_invalidated';
+                            return;
+                        }
+
                         // Retry fetchMe after refresh
                         return fetchMe(retryCount + 1);
                     } catch (refreshErr) {
@@ -111,8 +128,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const res = await fetch('/api/auth/session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken }),
+                body: JSON.stringify({ idToken, isLogin: false }),
             });
+
+            if (res.status === 401) {
+                console.warn('[AuthContext] Background session refresh invalidated. Logging out...');
+                await logoutFirebase();
+                setUser(null);
+                window.location.href = '/login?reason=session_invalidated';
+                return;
+            }
 
             if (!res.ok) {
                 console.error('[AuthContext] Failed to refresh session');
@@ -154,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     await fetch('/api/auth/session', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ idToken }),
+                        body: JSON.stringify({ idToken, isLogin: false }), // Ensure we don't wipe out session ID
                     });
                 } catch (err) {
                     console.error('[AuthContext] Failed to update session cookie:', err);
