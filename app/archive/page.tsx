@@ -408,7 +408,7 @@ function GuarantorsTab({ records, loading, search, onSearch, perms, onRestore, o
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                         {paginated.map(r => (
-                            <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{r.Name || r.GuarantorName || '—'}</td>
                                 <td className="px-6 py-4 text-gray-500 max-w-xs truncate">{r.Description || <span className="italic text-gray-300">—</span>}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-400 text-xs">{formatDate(r.UpdatedAt)}</td>
@@ -459,7 +459,7 @@ function QuotationsTab({ records, loading, search, onSearch, perms, onRestore, o
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                         {paginated.map(r => (
-                            <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-600">{r.DocumentNo || '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-2">
@@ -527,7 +527,7 @@ function DepartmentsTab({ records, loading, search, onSearch, perms, onRestore, 
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                         {paginated.map(r => (
-                            <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{r.DepartmentName || '—'}</td>
                                 <td className="px-6 py-4 text-gray-500 max-w-xs truncate">{r.Description || <span className="italic text-gray-300">—</span>}</td>
                                 <td className="px-6 py-4 whitespace-nowrap"><StatusBadge active={r.IsActive === true} /></td>
@@ -576,7 +576,7 @@ function ServicesTab({ records, loading, search, onSearch, perms, onRestore, onD
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                         {paginated.map(r => (
-                            <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{r.ServiceName || '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-500">{r.Unit || '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right font-semibold text-gray-900">
@@ -628,7 +628,7 @@ function UsersTab({ records, loading, search, onSearch, perms, onRestore, onDele
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                         {paginated.map(r => (
-                            <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-3">
                                         <div className="h-9 w-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
@@ -686,7 +686,7 @@ function LogsTab({ records, loading, search, onSearch }: Omit<TabProps, 'perms' 
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                         {paginated.map((r, idx) => (
-                            <tr key={r.id || idx} className="hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id || idx} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-400 text-xs">{formatDate(r.CreatedAt)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{r.Module || '—'}</span>

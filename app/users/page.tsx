@@ -301,7 +301,7 @@ export default function UsersPage() {
                                         </tr>
                                     ) : (
                                         paginatedUsers.map((user) => (
-                                            <tr key={user.UserID} className="hover:bg-gray-50/50 transition-colors">
+                                            <tr key={user.UserID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-9 w-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
@@ -470,7 +470,7 @@ export default function UsersPage() {
                                         </tr>
                                     ) : (
                                         paginatedRoles.map((role) => (
-                                            <tr key={role.RoleID} className="hover:bg-gray-50/50 transition-colors">
+                                            <tr key={role.RoleID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
                                                         <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0">

@@ -105,7 +105,7 @@ export default function LoginForm() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                 />
                 <label htmlFor="remember-me" className="ml-2 text-sm text-neutral-400">
-                    Remember me for 14 days
+                    Remember me
                 </label>
             </div>
 

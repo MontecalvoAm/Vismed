@@ -238,7 +238,7 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                                     <React.Fragment key={q.id}>
                                         <tr
                                             onClick={() => q.id && toggleRowExpand(q.id)}
-                                            className={`hover:bg-primary/5 transition-colors group cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
+                                            className={`odd:bg-white even:bg-gray-50/50 hover:bg-primary/10 transition-colors group cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
                                         >
                                             {(perms?.CanEdit || perms?.CanDelete) && (
                                                 <td className="px-4 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>

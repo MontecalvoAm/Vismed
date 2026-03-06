@@ -263,7 +263,7 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
                                                     const oPerms = permissions[mod] || { CanView: false, CanAdd: false, CanEdit: false, CanDelete: false };
 
                                                     return (
-                                                        <tr key={mod} className="hover:bg-gray-50 transition-colors">
+                                                        <tr key={mod} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                                             <td className="px-4 py-2 font-medium text-gray-800">
                                                                 {moduleDef.Label}
                                                             </td>

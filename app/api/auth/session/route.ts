@@ -60,13 +60,18 @@ export async function POST(req: NextRequest) {
             persistent: rememberMe === true
         });
 
-        response.cookies.set('vm_token', idToken, {
+        const cookieOptions: any = {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             path: '/',
-            expires: expiresAt,
-        });
+        };
+
+        if (rememberMe) {
+            cookieOptions.expires = expiresAt;
+        }
+
+        response.cookies.set('vm_token', idToken, cookieOptions);
 
         return response;
     } catch (err) {

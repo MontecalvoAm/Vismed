@@ -9,6 +9,10 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 export const metadata: Metadata = {
     title: 'VisayasMed Hospital | Quotation System',
     description: 'Internal quotation and billing system for VisayasMed Hospital.',
+    icons: {
+        icon: '/VisayasMedical.png',
+        apple: '/VisayasMedical.png'
+    }
 };
 
 export default function RootLayout({

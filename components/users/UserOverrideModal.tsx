@@ -213,7 +213,7 @@ export default function UserOverrideModal({ isOpen, onClose, user }: UserOverrid
                                             const effective = isActive ? oPerms : rPerms;
 
                                             return (
-                                                <tr key={mod} className={`transition-colors ${isActive ? 'bg-blue-50/30' : 'hover:bg-gray-50'}`}>
+                                                <tr key={mod} className={`odd:bg-white even:bg-gray-50/50 transition-colors ${isActive ? 'bg-blue-50/30' : 'hover:bg-gray-100/50'}`}>
                                                     <td className="px-4 py-3">
                                                         <div className="font-medium text-gray-800">{moduleDef.Label}</div>
                                                         <div className="text-[10px] text-gray-400 font-mono tracking-tight">{mod}</div>

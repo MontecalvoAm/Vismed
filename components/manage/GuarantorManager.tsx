@@ -373,7 +373,7 @@ export default function GuarantorManager() {
                                     <tr><td colSpan={(perms?.CanEdit || perms?.CanDelete) ? 5 : 4} className="px-5 py-10 text-center text-slate-400">No guarantors found.</td></tr>
                                 ) : paginated.map((d) => (
                                     <React.Fragment key={d.id}>
-                                        <tr className={`hover:bg-slate-50 transition-colors group cursor-pointer ${expandedRow === d.id ? 'bg-primary/5' : ''}`} onClick={(e) => handleRowExpand(d.id!, e)}>
+                                        <tr className={`odd:bg-white even:bg-slate-50/50 hover:bg-slate-100 transition-colors group cursor-pointer ${expandedRow === d.id ? 'bg-primary/5' : ''}`} onClick={(e) => handleRowExpand(d.id!, e)}>
                                             <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                                                 <input
                                                     type="checkbox"

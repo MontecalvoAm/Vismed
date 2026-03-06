@@ -463,7 +463,7 @@ export default function ServiceManager() {
                                 {paginatedServices.length === 0 ? (
                                     <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-400">No services found.</td></tr>
                                 ) : paginatedServices.map((s) => (
-                                    <tr key={s.ServiceID} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => toggleRowSelect(s.ServiceID)}>
+                                    <tr key={s.ServiceID} className="odd:bg-white even:bg-slate-50/50 hover:bg-slate-100 transition-colors group cursor-pointer" onClick={() => toggleRowSelect(s.ServiceID)}>
                                         <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
@@ -622,7 +622,7 @@ export default function ServiceManager() {
                                     const lowerDeptName = deptName.toLowerCase();
                                     const matched = lowerDeptName ? departments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName) : null;
                                     return (
-                                        <tr key={idx} className="hover:bg-slate-50">
+                                        <tr key={idx} className="odd:bg-white even:bg-slate-50/50 hover:bg-slate-100 transition-colors">
                                             <td className="px-4 py-2.5 font-medium text-slate-800">{row.ServiceName || '-'}</td>
                                             <td className="px-4 py-2.5 text-slate-600">
                                                 {deptName ? (

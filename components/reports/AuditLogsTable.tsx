@@ -219,7 +219,7 @@ export default function AuditLogsTable({ data, quotations = [], isLoading, onRef
                                     <React.Fragment key={group.id}>
                                         <tr
                                             onClick={() => toggleRowExpand(group.id)}
-                                            className={`hover:bg-primary/5 transition-colors group-hover cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
+                                            className={`odd:bg-white even:bg-gray-50/50 hover:bg-primary/10 transition-colors group-hover cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
                                         >
                                             {perms?.CanDelete && (
                                                 <td className="px-4 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
@@ -347,7 +347,7 @@ function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { grou
     const { user } = useAuth();
     const preparedBy = user ? `${user.FirstName} ${user.LastName}` : 'Unknown';
     const [page, setPage] = React.useState(1);
-    const rowsPerPage = 5;
+    const [rowsPerPage, setRowsPerPage] = React.useState(5);
     const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false);
 
     const totalPages = Math.max(1, Math.ceil(group.logs.length / rowsPerPage));
@@ -389,7 +389,7 @@ function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { grou
                         {paginatedLogs.map((log: any) => {
                             const meta = log.Metadata || {};
                             return (
-                                <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                                <tr key={log.id} className="odd:bg-white even:bg-slate-50/50 hover:bg-slate-100 transition-colors">
                                     <td className="px-4 py-3 whitespace-nowrap text-[11px] text-gray-500 font-bold">
                                         {log.CreatedAt ? (
                                             <>
@@ -441,8 +441,8 @@ function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { grou
                                                                         <td className="px-3 py-2 font-bold text-[10px] text-rose-600 text-center">{oldUsed}</td>
                                                                         <td className="px-3 py-2 font-bold text-[10px] text-emerald-600 text-center">{newUsed}</td>
                                                                         <td className={`px-3 py-2 font-bold text-[10px] text-center ${remainingQty === '-' ? 'text-slate-400' :
-                                                                                remainingQty === 0 ? 'text-emerald-600' :
-                                                                                    'text-amber-600'
+                                                                            remainingQty === 0 ? 'text-emerald-600' :
+                                                                                'text-amber-600'
                                                                             }`}>{remainingQty}</td>
                                                                     </tr>
                                                                 );
@@ -487,30 +487,50 @@ function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { grou
             </div>
 
             {/* Pagination for History Table */}
-            {totalPages > 1 && (
-                <div className="bg-slate-50 px-4 py-2 border-t border-gray-200 flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-500">
-                        Showing {(page - 1) * rowsPerPage + 1} to {Math.min(page * rowsPerPage, group.logs.length)} of {group.logs.length} entries
-                    </span>
+            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                            className="p-1 rounded bg-white border border-gray-200 text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        <span className="text-sm text-gray-500">Show</span>
+                        <select
+                            value={rowsPerPage}
+                            onChange={(e) => {
+                                setRowsPerPage(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none bg-white shadow-sm"
                         >
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-[11px] font-bold text-slate-700">Page {page} of {totalPages}</span>
-                        <button
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                            disabled={page === totalPages}
-                            className="p-1 rounded bg-white border border-gray-200 text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ChevronRightIcon className="w-3.5 h-3.5" />
-                        </button>
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                        </select>
+                        <span className="text-sm text-gray-500">entries</span>
                     </div>
+                    <span className="text-gray-500 text-center sm:text-left">
+                        Showing {group.logs.length === 0 ? 0 : (page - 1) * rowsPerPage + 1} to {Math.min(page * rowsPerPage, group.logs.length)} of {group.logs.length} entries
+                    </span>
                 </div>
-            )}
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1 || group.logs.length === 0}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:bg-white bg-white shadow-sm"
+                    >
+                        <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="px-3 py-1 font-medium text-gray-700">
+                        Page {page} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages || group.logs.length === 0}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:bg-white bg-white shadow-sm"
+                    >
+                        <ChevronRightIcon className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
 
             <AuditLogsPrintModal
                 isOpen={isPrintModalOpen}
