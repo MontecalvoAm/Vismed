@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Search, CalendarRange, Filter, Package, Shield } from 'lucide-react';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 
@@ -27,6 +28,17 @@ export default function ReportsFilter({
     dateTo, onDateToChange,
     availableStatuses = [],
 }: ReportsFilterProps) {
+    const [localSearch, setLocalSearch] = useState(searchTerm);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localSearch !== searchTerm) {
+                onSearchChange(localSearch);
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localSearch, onSearchChange, searchTerm]);
+
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-3">
             {/* Row 1: search + status */}
@@ -39,8 +51,8 @@ export default function ReportsFilter({
                         type="text"
                         className="block w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
                         placeholder="Search client name or email..."
-                        value={searchTerm}
-                        onChange={(e) => onSearchChange(e.target.value)}
+                        value={localSearch}
+                        onChange={(e) => setLocalSearch(e.target.value)}
                     />
                 </div>
                 <div className="relative w-full sm:w-52">

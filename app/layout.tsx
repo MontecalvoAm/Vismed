@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ConfirmProvider } from '@/context/ConfirmContext';
+import { getServerUser } from '@/lib/getServerUser';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -15,16 +16,25 @@ export const metadata: Metadata = {
     }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    // Attempt to fetch the user session directly on the server
+    const initialUser = await getServerUser();
+
     return (
         <html lang="en">
+            <head>
+                <link rel="preconnect" href="https://firestore.googleapis.com" crossOrigin="anonymous" />
+                <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossOrigin="anonymous" />
+                <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+                <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
+            </head>
             <body className={`${inter.variable} font-sans`}>
                 <ConfirmProvider>
-                    <AuthProvider>{children}</AuthProvider>
+                    <AuthProvider initialUser={initialUser}>{children}</AuthProvider>
                 </ConfirmProvider>
             </body>
         </html>

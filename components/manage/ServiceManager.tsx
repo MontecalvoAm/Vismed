@@ -6,10 +6,10 @@
 // ============================================================
 
 import { useEffect, useState, useRef } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, Upload, Stethoscope, CheckCircle2, LayoutGrid, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { getAllServices, addService, updateService, deleteService, type Service } from '@/lib/firestore/services';
-import { getDepartments, addDepartment, type Department } from '@/lib/firestore/departments';
+import { addService, updateService, deleteService, type Service } from '@/lib/firestore/services';
+import { addDepartment, type Department } from '@/lib/firestore/departments';
 import { useAuth } from '@/context/AuthContext';
 import FormModal from '@/components/manage/FormModal';
 import AccessDenied from '@/components/AccessDenied';
@@ -18,14 +18,31 @@ import { FeedbackModal } from '@/components/ui/FeedbackModal';
 const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const EMPTY_FORM = { ServiceName: '', DepartmentID: '', Price: 0, Unit: 'per session', Description: '' };
 
-export default function ServiceManager() {
+interface ServiceManagerProps {
+    paginatedServices: Service[];
+    totalCount: number;
+    activeCount: number;
+    departmentsCount: number;
+    totalPages: number;
+    serverAllDepartments: Department[];
+    serverAllServices: Service[];
+}
+
+export default function ServiceManager({
+    paginatedServices,
+    totalCount,
+    activeCount,
+    departmentsCount,
+    totalPages,
+    serverAllDepartments,
+    serverAllServices
+}: ServiceManagerProps) {
     const { user } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
     const perms = user?.Permissions?.Services;
 
-    const [services, setServices] = useState<Service[]>([]);
-    const [departments, setDepartments] = useState<Department[]>([]);
-    const [filterDeptId, setFilterDeptId] = useState('');
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
@@ -40,43 +57,35 @@ export default function ServiceManager() {
         message: ''
     });
 
-    // Filter & Search
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    // URL Filter & Search
+    const searchTerm = searchParams.get('search') || '';
+    const filterDeptId = searchParams.get('department') || '';
+    const currentPage = parseInt(searchParams.get('page') || '1', 10);
+    const rowsPerPage = parseInt(searchParams.get('limit') || '10', 10);
+
+    const updateQuery = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        Object.entries(updates).forEach(([key, val]) => {
+            if (val === null || val === '') params.delete(key);
+            else params.set(key, val);
+        });
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    };
 
     // Upload Excel state
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadData, setUploadData] = useState<any[] | null>(null);
     const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number, status: string } | null>(null);
 
-    const load = async () => {
-        setLoading(true);
-        try {
-            const [svcs, depts] = await Promise.all([getAllServices(), getDepartments()]);
-            setServices(svcs);
-            setDepartments(depts);
-        } finally { setLoading(false); }
-    };
+    const loading = false; // Kept for prop-compatibility
 
-    useEffect(() => { load(); }, []);
+    const refreshData = () => {
+        router.refresh();
+    };
 
     if (!perms?.CanView) return <AccessDenied moduleName="Services" />;
 
-    const filtered = services.filter(s => {
-        const matchesDept = filterDeptId ? s.DepartmentID === filterDeptId : true;
-        const matchesSearch = s.ServiceName.toLowerCase().includes(searchTerm.toLowerCase()) || s.Description.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesDept && matchesSearch;
-    });
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-    useEffect(() => {
-        if (currentPage > totalPages) setCurrentPage(totalPages);
-    }, [totalPages, currentPage]);
-
-    const paginatedServices = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-    const deptName = (id: string) => departments.find(d => d.DepartmentID === id)?.DepartmentName ?? id;
+    const deptName = (id: string) => serverAllDepartments.find(d => d.DepartmentID === id)?.DepartmentName ?? id;
 
     const openAdd = () => { setEditTarget(null); setForm(EMPTY_FORM); setModalOpen(true); };
     const openEdit = (s: Service) => {
@@ -89,7 +98,7 @@ export default function ServiceManager() {
         e.preventDefault();
         setError('');
 
-        const isDuplicate = services.some(
+        const isDuplicate = serverAllServices.some(
             s => s.DepartmentID === form.DepartmentID && s.ServiceName.toLowerCase() === form.ServiceName.trim().toLowerCase() && s.ServiceID !== editTarget?.ServiceID
         );
         if (isDuplicate) {
@@ -107,7 +116,7 @@ export default function ServiceManager() {
             }
             setModalOpen(false);
             setFeedback({ isOpen: true, type: 'success', title: 'Success', message: editTarget ? 'Service updated successfully.' : 'Service added successfully.' });
-            await load();
+            refreshData();
         } catch {
             setError('Failed to save. Please try again.');
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save service. Please try again.' });
@@ -126,7 +135,7 @@ export default function ServiceManager() {
                 next.delete(deleteConfirm.ServiceID);
                 return next;
             });
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Service successfully deleted.' });
         } catch (err) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete service.' });
@@ -141,7 +150,7 @@ export default function ServiceManager() {
             const promises = Array.from(selectedIds).map(id => deleteService(id, by));
             await Promise.all(promises);
             setSelectedIds(new Set());
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected services successfully deleted.' });
         } catch (err) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete selected services.' });
@@ -153,8 +162,9 @@ export default function ServiceManager() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
             try {
+                const XLSX = await import('xlsx');
                 const bstr = evt.target?.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const wsname = wb.SheetNames[0];
@@ -205,7 +215,7 @@ export default function ServiceManager() {
 
             for (const deptName of uniqueRawDepts) {
                 const lowerDeptName = deptName.toLowerCase();
-                const matched = departments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName);
+                const matched = serverAllDepartments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName);
 
                 if (!matched && !newlyCreatedDepts[lowerDeptName]) {
                     const newId = await addDepartment({
@@ -237,7 +247,7 @@ export default function ServiceManager() {
 
                 let deptId = '';
                 if (lowerDeptName) {
-                    const matched = departments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName);
+                    const matched = serverAllDepartments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName);
                     if (matched) {
                         deptId = matched.DepartmentID;
                     } else if (newlyCreatedDepts[lowerDeptName]) {
@@ -247,7 +257,7 @@ export default function ServiceManager() {
 
                 if (!deptId) continue;
 
-                const existingService = services.find(s => s.DepartmentID === deptId && s.ServiceName.toLowerCase() === lowerServiceName);
+                const existingService = serverAllServices.find(s => s.DepartmentID === deptId && s.ServiceName.toLowerCase() === lowerServiceName);
                 const uniqueKey = `${deptId}:${lowerServiceName}`;
 
                 if (newlyCreatedServices.has(uniqueKey)) continue;
@@ -292,7 +302,7 @@ export default function ServiceManager() {
 
             setUploadData(null);
             setUploadProgress(null);
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Upload Complete', message: `Successfully added ${validServices.length} and updated ${servicesToUpdate.length} services.` });
         } catch (err) {
             setError('Failed to batch save uploaded data.');
@@ -303,9 +313,6 @@ export default function ServiceManager() {
             setUploadProgress(null);
         }
     };
-
-    const activeCount = services.filter(s => s.IsActive !== false).length;
-    const departmentsCount = new Set(services.map(s => s.DepartmentID).filter(Boolean)).size;
 
     const toggleSelectAll = () => {
         const visibleIds = paginatedServices.map(s => s.ServiceID);
@@ -357,7 +364,7 @@ export default function ServiceManager() {
                     <div>
                         <p className="text-xs text-gray-500 font-medium">Total Services</p>
                         <p className="text-xl font-bold text-gray-900 mt-0.5">
-                            {loading ? '—' : services.length}
+                            {loading ? '—' : totalCount}
                         </p>
                     </div>
                 </div>
@@ -395,17 +402,17 @@ export default function ServiceManager() {
                                 type="search"
                                 placeholder="Search services..."
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                defaultValue={searchTerm}
+                                onChange={(e) => updateQuery({ search: e.target.value || null, page: '1' })}
                             />
                             <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                                 <Search className="w-4 h-4" />
                             </div>
                         </div>
                         <select className="w-full sm:w-auto text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
-                            value={filterDeptId} onChange={e => setFilterDeptId(e.target.value)}>
+                            value={filterDeptId} onChange={e => updateQuery({ department: e.target.value || null, page: '1' })}>
                             <option value="">All Departments</option>
-                            {departments.map(d => <option key={d.DepartmentID} value={d.DepartmentID}>{d.DepartmentName}</option>)}
+                            {serverAllDepartments.map(d => <option key={d.DepartmentID} value={d.DepartmentID}>{d.DepartmentName}</option>)}
                         </select>
                     </div>
 
@@ -506,10 +513,7 @@ export default function ServiceManager() {
                                 <span className="text-sm text-slate-500">Show</span>
                                 <select
                                     value={rowsPerPage}
-                                    onChange={(e) => {
-                                        setRowsPerPage(Number(e.target.value));
-                                        setCurrentPage(1);
-                                    }}
+                                    onChange={(e) => updateQuery({ limit: e.target.value, page: '1' })}
                                     className="border border-slate-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none bg-white shadow-sm"
                                 >
                                     <option value={5}>5</option>
@@ -520,14 +524,14 @@ export default function ServiceManager() {
                                 <span className="text-sm text-slate-500">entries</span>
                             </div>
                             <span className="text-slate-500 text-center sm:text-left">
-                                Showing {filtered.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filtered.length)} of {filtered.length} entries
+                                Showing {totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalCount)} of {totalCount} entries
                             </span>
                         </div>
 
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1 || filtered.length === 0}
+                                onClick={() => updateQuery({ page: String(Math.max(1, currentPage - 1)) })}
+                                disabled={currentPage === 1 || totalCount === 0}
                                 className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
                             >
                                 <ChevronLeft className="w-4 h-4" />
@@ -536,8 +540,8 @@ export default function ServiceManager() {
                                 Page {currentPage} of {totalPages}
                             </span>
                             <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages || filtered.length === 0}
+                                onClick={() => updateQuery({ page: String(Math.min(totalPages, currentPage + 1)) })}
+                                disabled={currentPage === totalPages || totalCount === 0}
                                 className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
                             >
                                 <ChevronRight className="w-4 h-4" />
@@ -555,7 +559,7 @@ export default function ServiceManager() {
                         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Department</label>
                         <select className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40" value={form.DepartmentID} onChange={e => setForm(f => ({ ...f, DepartmentID: e.target.value }))} required>
                             <option value="">Select a department...</option>
-                            {departments.map(d => <option key={d.DepartmentID} value={d.DepartmentID}>{d.DepartmentName}</option>)}
+                            {serverAllDepartments.map(d => <option key={d.DepartmentID} value={d.DepartmentID}>{d.DepartmentName}</option>)}
                         </select>
                     </div>
                     <div className="space-y-1">
@@ -620,7 +624,7 @@ export default function ServiceManager() {
                                 {uploadData?.map((row, idx) => {
                                     const deptName = String(row.DepartmentName || '').trim();
                                     const lowerDeptName = deptName.toLowerCase();
-                                    const matched = lowerDeptName ? departments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName) : null;
+                                    const matched = lowerDeptName ? serverAllDepartments.find(d => d.DepartmentName.toLowerCase() === lowerDeptName) : null;
                                     return (
                                         <tr key={idx} className="odd:bg-white even:bg-slate-50/50 hover:bg-slate-100 transition-colors">
                                             <td className="px-4 py-2.5 font-medium text-slate-800">{row.ServiceName || '-'}</td>

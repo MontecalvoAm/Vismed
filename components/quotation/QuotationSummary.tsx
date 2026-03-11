@@ -74,30 +74,11 @@ export default function QuotationSummary({
 
     const saveRecord = async () => {
         try {
-            if (isEditing && editId) {
-                const { updateQuotation } = await import('@/lib/firestore/quotations');
-                const { createAuditLog } = await import('@/lib/firestore/audit');
-                await updateQuotation(editId, recordFormat);
-                await createAuditLog({
-                    Action: 'Edited Quotation',
-                    Module: 'Quotation',
-                    RecordID: editId,
-                    Description: `Updated Quotation Document No: ${recordFormat.DocumentNo || editId}`
-                });
-            } else {
-                const { addQuotation } = await import('@/lib/firestore/quotations');
-                const { createAuditLog } = await import('@/lib/firestore/audit');
-                const newId = await addQuotation(recordFormat);
-                await createAuditLog({
-                    Action: 'Created Quotation',
-                    Module: 'Quotation',
-                    RecordID: newId,
-                    Description: `Created Quotation Document No: ${recordFormat.DocumentNo || newId}`,
-                    Metadata: {
-                        PatientName: recordFormat.CustomerName,
-                        GuarantorName: recordFormat.GuarantorName ?? '',
-                    }
-                });
+            const { saveQuotationAction } = await import('@/app/actions/quotationActions');
+            const res = await saveQuotationAction(recordFormat, isEditing, editId);
+            if (!res.success) {
+                console.error('Failed to save quotation:', res.error);
+                return false;
             }
             return true;
         } catch (dbErr) {

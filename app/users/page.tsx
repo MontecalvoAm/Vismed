@@ -1,164 +1,59 @@
-'use client';
+import { getServerUser } from '@/lib/getServerUser';
+import UsersPageView from './UsersPageView';
+import { adminDb } from '@/lib/firebaseAdmin';
 
-import { useState, useEffect } from 'react';
-import { UserRecord, getAllUsers } from '@/lib/firestore/users';
-import { Role as RoleRecord, getAllRoles } from '@/lib/firestore/roles';
-import UserModal from '@/components/users/UserModal';
-import RoleModal from '@/components/users/RoleModal';
-import SidebarLayout from '@/components/layout/SidebarLayout';
-import { useConfirm } from '@/context/ConfirmContext';
-import {
-    Plus, Edit2, Trash2, Shield, User as UserIcon,
-    Users, ShieldCheck, CheckCircle, XCircle, Search, Filter, ChevronLeft, ChevronRight, Key
-} from 'lucide-react';
-import UserOverrideModal from '@/components/users/UserOverrideModal';
-import { useAuth } from '@/context/AuthContext';
-import { FeedbackModal } from '@/components/ui/FeedbackModal';
-import UsersFilter from '@/components/users/UsersFilter';
+export const dynamic = 'force-dynamic';
 
-type ActiveTab = 'users' | 'roles';
+export default async function UsersPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+    const searchParams = await props.searchParams;
+    const serverUser = await getServerUser();
 
-export default function UsersPage() {
-    const { confirm, alert } = useConfirm();
-    const { user } = useAuth();
-    const perms = user?.Permissions?.Users;
-    const [activeTab, setActiveTab] = useState<ActiveTab>('users');
-    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
-        isOpen: false,
-        type: 'success',
-        title: '',
-        message: ''
-    });
+    // Parse Search Params
+    const tab = (searchParams.tab as string) || 'users';
 
-    // ── Users state ──────────────────────────────────────────
-    const [users, setUsers] = useState<UserRecord[]>([]);
-    const [usersLoading, setUsersLoading] = useState(true);
-    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-    const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
-    const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
+    // User Filters
+    const userSearchTerm = (searchParams.search as string) || '';
+    const roleFilter = (searchParams.role as string) || 'all';
+    const statusFilter = (searchParams.status as string) || 'all';
+    const currentPage = parseInt((searchParams.page as string) || '1', 10);
+    const rowsPerPage = parseInt((searchParams.limit as string) || '10', 10);
 
-    // Filter & Pagination state
-    const [roleFilter, setRoleFilter] = useState<string>('all');
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [userSearchTerm, setUserSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    // Role Filters
+    const roleSearchTerm = (searchParams.rsearch as string) || '';
+    const roleCurrentPage = parseInt((searchParams.rpage as string) || '1', 10);
+    const roleRowsPerPage = parseInt((searchParams.rlimit as string) || '10', 10);
 
-    // Role filtering & Search
-    const [roleSearchTerm, setRoleSearchTerm] = useState('');
-    const [roleCurrentPage, setRoleCurrentPage] = useState(1);
-    const [roleRowsPerPage, setRoleRowsPerPage] = useState(5);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(5);
+    // Fetch Roles (always needed for the filter dropdown)
+    const rSnap = await adminDb.collection('M_Role').get();
+    const allRoles = rSnap.docs.map(d => {
+        const data = d.data();
+        return {
+            RoleID: d.id,
+            ...data,
+            CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
+            UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
+        };
+    }) as any[];
 
-    // ── Roles state ──────────────────────────────────────────
-    const [roles, setRoles] = useState<RoleRecord[]>([]);
-    const [rolesLoading, setRolesLoading] = useState(false);
-    const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
-    const [selectedRole, setSelectedRole] = useState<RoleRecord | null>(null);
+    // Fetch Users (if users tab)
+    let initialUsers: any[] = [];
+    if (tab === 'users' || tab === undefined) {
+        const uSnap = await adminDb.collection('M_User').get();
+        initialUsers = uSnap.docs.map(d => {
+            const data = d.data();
+            return {
+                UserID: d.id,
+                ...data,
+                CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
+                UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
+            };
+        }).filter(u => u.IsDeleted !== true);
+    }
 
-    // ── Load Users ───────────────────────────────────────────
-    const loadUsers = async () => {
-        setUsersLoading(true);
-        try {
-            const data = await getAllUsers();
-            setUsers(data);
-        } catch (error) {
-            console.error('Failed to load users:', error);
-        } finally {
-            setUsersLoading(false);
-        }
-    };
-
-    // ── Load Roles ───────────────────────────────────────────
-    const loadRoles = async () => {
-        setRolesLoading(true);
-        try {
-            const data = await getAllRoles();
-            setRoles(data as RoleRecord[]);
-        } catch (error) {
-            console.error('Failed to load roles:', error);
-        } finally {
-            setRolesLoading(false);
-        }
-    };
-
-    // Load both on mount; reload roles whenever the Roles tab becomes active
-    useEffect(() => {
-        loadUsers();
-        loadRoles();
-    }, []);
-    useEffect(() => {
-        if (activeTab === 'roles') loadRoles();
-    }, [activeTab]);
-
-    // ── User actions ─────────────────────────────────────────
-    const handleAddUser = () => { setSelectedUser(null); setIsUserModalOpen(true); };
-    const handleEditUser = (user: UserRecord) => { setSelectedUser(user); setIsUserModalOpen(true); };
-    const handleEditOverrides = (user: UserRecord) => { setSelectedUser(user); setIsOverrideModalOpen(true); };
-    const handleDeleteUser = async (user: UserRecord) => {
-        const isConfirmed = await confirm({
-            title: 'Delete User',
-            message: `Delete user ${user.FirstName} ${user.LastName}? This action cannot be undone.`,
-            variant: 'danger',
-            confirmText: 'Delete'
-        });
-        if (!isConfirmed) return;
-
-        try {
-            const res = await fetch(`/api/users/${user.UserID}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete user');
-            loadUsers();
-            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'User deleted successfully.' });
-        } catch (error: any) {
-            console.error(error);
-            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: error.message || 'Failed to delete user' });
-        }
-    };
-
-    // ── Role actions ─────────────────────────────────────────
-    const handleAddRole = () => { setSelectedRole(null); setIsRoleModalOpen(true); };
-    const handleEditRole = (role: RoleRecord) => { setSelectedRole(role); setIsRoleModalOpen(true); };
-    const handleDeleteRole = async (role: RoleRecord) => {
-        const isConfirmed = await confirm({
-            title: 'Delete Role',
-            message: `Delete role "${role.RoleName}"? Users assigned this role will need to be updated.`,
-            variant: 'danger',
-            confirmText: 'Delete Role'
-        });
-        if (!isConfirmed) return;
-
-        try {
-            const res = await fetch(`/api/roles/${role.RoleID}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'Failed to delete role');
-            loadRoles();
-            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Role deleted successfully.' });
-        } catch (error: any) {
-            console.error(error);
-            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: error.message || 'Failed to delete role' });
-        }
-    };
-
-    // ── Role name lookup ─────────────────────────────────────
-    const getRoleName = (roleId: string) => {
-        const found = roles.find((r) => r.RoleID === roleId);
-        return found?.RoleName ?? roleId ?? 'Unknown';
-    };
-
-    // ── Filtered & Paginated Users ───────────────────────────
-    const filteredRoles = roles.filter(role =>
-        role.RoleName.toLowerCase().includes(roleSearchTerm.toLowerCase()) ||
-        role.Description.toLowerCase().includes(roleSearchTerm.toLowerCase())
-    );
-
-    const roleTotalPages = Math.max(1, Math.ceil(filteredRoles.length / roleRowsPerPage));
-    useEffect(() => {
-        if (roleCurrentPage > roleTotalPages) setRoleCurrentPage(roleTotalPages);
-    }, [roleTotalPages, roleCurrentPage]);
-
-    const paginatedRoles = filteredRoles.slice((roleCurrentPage - 1) * roleRowsPerPage, roleCurrentPage * roleRowsPerPage);
-
-    const filteredUsers = users.filter((user) => {
+    // Filter Users in JS
+    const filteredUsers = initialUsers.filter((user) => {
         if (roleFilter !== 'all' && user.RoleID !== roleFilter) return false;
 
         if (statusFilter !== 'all') {
@@ -174,414 +69,41 @@ export default function UsersPage() {
                 return false;
             }
         }
-
         return true;
     });
 
-    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
-    // Ensure current page is valid after filtering or changing rows per page
-    useEffect(() => {
-        if (currentPage > totalPages) {
-            setCurrentPage(totalPages);
+    const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
+    const safeCurrentPage = Math.min(currentPage, userTotalPages);
+    const paginatedUsers = filteredUsers.slice((safeCurrentPage - 1) * rowsPerPage, safeCurrentPage * rowsPerPage);
+
+    // Filter Roles in JS
+    const filteredRoles = allRoles.filter((role) => {
+        if (roleSearchTerm.trim() !== '') {
+            const term = roleSearchTerm.toLowerCase();
+            if (!role.RoleName.toLowerCase().includes(term) && !(role.Description || '').toLowerCase().includes(term)) {
+                return false;
+            }
         }
-    }, [totalPages, currentPage]);
+        return true;
+    });
 
-    const paginatedUsers = filteredUsers.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-    const tabs = [
-        { key: 'users' as ActiveTab, label: 'Users', icon: <Users className="w-4 h-4" /> },
-        { key: 'roles' as ActiveTab, label: 'Roles', icon: <ShieldCheck className="w-4 h-4" /> },
-    ];
+    const roleTotalPagesCalc = Math.max(1, Math.ceil(filteredRoles.length / roleRowsPerPage));
+    const safeRoleCurrentPage = Math.min(roleCurrentPage, roleTotalPagesCalc);
+    const paginatedRoles = filteredRoles.slice((safeRoleCurrentPage - 1) * roleRowsPerPage, safeRoleCurrentPage * roleRowsPerPage);
 
     return (
-        <SidebarLayout pageTitle="User Management">
-            <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+        <UsersPageView
+            paginatedUsers={paginatedUsers}
+            filteredUsersCount={filteredUsers.length}
+            totalUsersCount={initialUsers.length}
+            totalPages={userTotalPages}
 
-                {/* Page Header */}
-                <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">User Management</h1>
-                    <p className="text-gray-500 mt-1">Manage staff accounts, roles, and system access.</p>
-                </div>
+            paginatedRoles={paginatedRoles}
+            filteredRolesCount={filteredRoles.length}
+            roleTotalPages={roleTotalPagesCalc}
 
-                {/* Tabs row */}
-                <div className="mb-6">
-                    {/* Tab Switcher */}
-                    <div className="inline-flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-sm gap-1">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.key
-                                    ? 'bg-primary text-white shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                                    }`}
-                            >
-                                {tab.icon}
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ── USERS TAB ────────────────────────────────────────── */}
-                {activeTab === 'users' && (
-                    <div className="space-y-4">
-                        {/* Toolbar: Filter & Actions */}
-                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                            <div className="flex-1 w-full transition-all">
-                                <UsersFilter
-                                    searchTerm={userSearchTerm}
-                                    onSearchChange={(v) => { setUserSearchTerm(v); setCurrentPage(1); }}
-                                    roleFilter={roleFilter}
-                                    onRoleChange={(v) => { setRoleFilter(v); setCurrentPage(1); }}
-                                    availableRoles={roles.map(r => ({ id: r.RoleID, name: r.RoleName }))}
-                                    statusFilter={statusFilter}
-                                    onStatusChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}
-                                />
-                            </div>
-                            {perms?.CanAdd && (
-                                <div className="w-full xl:w-auto flex justify-end shrink-0">
-                                    <button
-                                        onClick={handleAddUser}
-                                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
-                                    >
-                                        <Plus className="w-4 h-4" /> Add User
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                    <thead className="bg-gray-50/80">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Name</th>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
-                                            {(perms?.CanEdit || perms?.CanDelete) && (
-                                                <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
-                                            )}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-100">
-                                        {usersLoading ? (
-                                            <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                                                    Loading users...
-                                                </td>
-                                            </tr>
-                                        ) : paginatedUsers.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                                                    {users.length === 0 ? 'No users found. Click "Add User" to get started.' : 'No users match the selected filters.'}
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            paginatedUsers.map((user) => (
-                                                <tr key={user.UserID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="h-9 w-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                                                                {user.FirstName?.charAt(0)}{user.LastName?.charAt(0)}
-                                                            </div>
-                                                            <span className="text-gray-900 font-medium">
-                                                                {user.FirstName} {user.LastName}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.Email}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                                                            <Shield className="w-3 h-3" />
-                                                            {getRoleName(user.RoleID)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${user.IsActive !== false
-                                                            ? 'bg-green-100 text-green-700'
-                                                            : 'bg-red-100 text-red-700'
-                                                            }`}>
-                                                            {user.IsActive !== false
-                                                                ? <><CheckCircle className="w-3 h-3" /> Active</>
-                                                                : <><XCircle className="w-3 h-3" /> Inactive</>
-                                                            }
-                                                        </span>
-                                                    </td>
-                                                    {(perms?.CanEdit || perms?.CanDelete) && (
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                            {perms?.CanEdit && (
-                                                                <>
-                                                                    <button
-                                                                        onClick={() => handleEditOverrides(user)}
-                                                                        className="text-amber-500 hover:text-amber-600 mr-4 transition"
-                                                                        title="Custom Permissions"
-                                                                    >
-                                                                        <Key className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleEditUser(user)}
-                                                                        className="text-primary hover:text-primary/70 mr-4 transition"
-                                                                        title="Edit user"
-                                                                    >
-                                                                        <Edit2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                            {perms?.CanDelete && (
-                                                                <button
-                                                                    onClick={() => handleDeleteUser(user)}
-                                                                    className="text-red-500 hover:text-red-600 transition"
-                                                                    title="Delete user"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            )}
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination footer */}
-                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
-                                <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-500">Show</span>
-                                        <select
-                                            value={rowsPerPage}
-                                            onChange={(e) => {
-                                                setRowsPerPage(Number(e.target.value));
-                                                setCurrentPage(1);
-                                            }}
-                                            className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
-                                        >
-                                            <option value={5}>5</option>
-                                            <option value={10}>10</option>
-                                            <option value={20}>20</option>
-                                            <option value={50}>50</option>
-                                        </select>
-                                        <span className="text-sm text-gray-500">entries</span>
-                                    </div>
-                                    <span className="text-gray-500 text-center sm:text-left">
-                                        Showing {usersLoading || filteredUsers.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
-                                        {roleFilter !== 'all' && ` (filtered from ${users.length} total)`}
-                                    </span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                        disabled={currentPage === 1 || usersLoading || filteredUsers.length === 0}
-                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" />
-                                    </button>
-                                    <span className="px-3 py-1 font-medium text-gray-700">
-                                        Page {currentPage} of {totalPages}
-                                    </span>
-                                    <button
-                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                        disabled={currentPage === totalPages || usersLoading || filteredUsers.length === 0}
-                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── ROLES TAB ────────────────────────────────────────── */}
-                {activeTab === 'roles' && (
-                    <div className="space-y-4">
-                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                            <div className="flex-1 w-full bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
-                                <div className="relative w-full max-w-md">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Search className="h-4 w-4 text-gray-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Search roles..."
-                                        className="block w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
-                                        value={roleSearchTerm}
-                                        onChange={(e) => { setRoleSearchTerm(e.target.value); setRoleCurrentPage(1); }}
-                                    />
-                                </div>
-                            </div>
-                            {perms?.CanAdd && (
-                                <div className="w-full xl:w-auto flex justify-end shrink-0">
-                                    <button
-                                        onClick={handleAddRole}
-                                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
-                                    >
-                                        <Plus className="w-4 h-4" /> Add Role
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                    <thead className="bg-gray-50/80">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role Name</th>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Description</th>
-                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
-                                            <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-100">
-                                        {rolesLoading ? (
-                                            <tr>
-                                                <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                                    Loading roles...
-                                                </td>
-                                            </tr>
-                                        ) : paginatedRoles.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                                    No roles found.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            paginatedRoles.map((role) => (
-                                                <tr key={role.RoleID} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
-                                                                <ShieldCheck className="w-4 h-4 text-purple-600" />
-                                                            </div>
-                                                            <span className="text-gray-900 font-semibold">{role.RoleName}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
-                                                        {role.Description || <span className="italic text-gray-300">No description</span>}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${role.IsActive !== false
-                                                            ? 'bg-green-100 text-green-700'
-                                                            : 'bg-red-100 text-red-700'
-                                                            }`}>
-                                                            {role.IsActive !== false
-                                                                ? <><CheckCircle className="w-3 h-3" /> Active</>
-                                                                : <><XCircle className="w-3 h-3" /> Inactive</>
-                                                            }
-                                                        </span>
-                                                    </td>
-                                                    {(perms?.CanEdit || perms?.CanDelete) && (
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                            {perms?.CanEdit && (
-                                                                <button
-                                                                    onClick={() => handleEditRole(role)}
-                                                                    className="text-primary hover:text-primary/70 mr-4 transition"
-                                                                    title="Edit role"
-                                                                >
-                                                                    <Edit2 className="w-4 h-4" />
-                                                                </button>
-                                                            )}
-                                                            {perms?.CanDelete && (
-                                                                <button
-                                                                    onClick={() => handleDeleteRole(role)}
-                                                                    className="text-red-500 hover:text-red-600 transition"
-                                                                    title="Delete role"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            )}
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination footer */}
-                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-white">
-                                <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-500">Show</span>
-                                        <select
-                                            value={roleRowsPerPage}
-                                            onChange={(e) => {
-                                                setRoleRowsPerPage(Number(e.target.value));
-                                                setRoleCurrentPage(1);
-                                            }}
-                                            className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none shadow-sm"
-                                        >
-                                            <option value={5}>5</option>
-                                            <option value={10}>10</option>
-                                            <option value={20}>20</option>
-                                            <option value={50}>50</option>
-                                        </select>
-                                        <span className="text-sm text-gray-500">entries</span>
-                                    </div>
-                                    <span className="text-gray-500 text-center sm:text-left">
-                                        Showing {rolesLoading || filteredRoles.length === 0 ? 0 : (roleCurrentPage - 1) * roleRowsPerPage + 1} to {Math.min(roleCurrentPage * roleRowsPerPage, filteredRoles.length)} of {filteredRoles.length} entries
-                                    </span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setRoleCurrentPage(p => Math.max(1, p - 1))}
-                                        disabled={roleCurrentPage === 1 || rolesLoading || filteredRoles.length === 0}
-                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" />
-                                    </button>
-                                    <span className="px-3 py-1 font-medium text-gray-700">
-                                        Page {roleCurrentPage} of {roleTotalPages}
-                                    </span>
-                                    <button
-                                        onClick={() => setRoleCurrentPage(p => Math.min(roleTotalPages, p + 1))}
-                                        disabled={roleCurrentPage === roleTotalPages || rolesLoading || filteredRoles.length === 0}
-                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
-                                    >
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Modals */}
-            <UserModal
-                isOpen={isUserModalOpen}
-                onClose={() => setIsUserModalOpen(false)}
-                user={selectedUser}
-                onSave={loadUsers}
-            />
-            <UserOverrideModal
-                isOpen={isOverrideModalOpen}
-                onClose={() => setIsOverrideModalOpen(false)}
-                user={selectedUser}
-            />
-            <RoleModal
-                isOpen={isRoleModalOpen}
-                onClose={() => setIsRoleModalOpen(false)}
-                role={selectedRole}
-                onSave={loadRoles}
-                existingRoles={roles}
-            />
-
-            <FeedbackModal
-                isOpen={feedback.isOpen}
-                type={feedback.type}
-                title={feedback.title}
-                message={feedback.message}
-                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
-            />
-        </SidebarLayout >
+            allRoles={allRoles}
+            perms={(serverUser as any)?.Permissions?.Users}
+        />
     );
 }

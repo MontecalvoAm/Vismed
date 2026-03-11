@@ -17,6 +17,11 @@ interface ReportsTableProps {
     onRefresh?: () => void;
     onDelete?: (id: string) => Promise<void>;
     onBulkDelete?: (ids: string[]) => Promise<void>;
+    currentPage: number;
+    rowsPerPage: number;
+    totalPages: number;
+    totalCount: number;
+    updateQuery: (updates: Record<string, string | null>) => void;
 }
 
 const statusStyles: Record<string, string> = {
@@ -25,7 +30,10 @@ const statusStyles: Record<string, string> = {
     'Completed': 'bg-green-100 text-green-700',
 };
 
-export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onBulkDelete }: ReportsTableProps) {
+export default function ReportsTable({
+    data, isLoading, onRefresh, onDelete, onBulkDelete,
+    currentPage, rowsPerPage, totalPages, totalCount, updateQuery
+}: ReportsTableProps) {
     const router = useRouter();
     const { confirm, alert } = useConfirm();
     const { user } = useAuth();
@@ -36,10 +44,6 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
     const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-
-    // Pagination
-    const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
 
     const toggleRowExpand = (id: string) => {
         setExpandedRows(prev => {
@@ -89,16 +93,9 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
         }
     };
 
-    const totalPages = Math.max(1, Math.ceil(data.length / rowsPerPage));
-    React.useEffect(() => {
-        if (currentPage > totalPages) setCurrentPage(totalPages);
-    }, [totalPages, currentPage]);
-
-    const paginatedData = data.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
     const toggleSelectAll = () => {
         // If all currently visible rows are selected, deselect them all
-        const visibleIds = paginatedData.map(q => q.id!).filter(Boolean);
+        const visibleIds = data.map(q => q.id!).filter(Boolean);
         const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedRows.has(id));
 
         if (allVisibleSelected) {
@@ -213,7 +210,7 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                                     <th className="px-4 py-4 w-10">
                                         <input
                                             type="checkbox"
-                                            checked={paginatedData.length > 0 && paginatedData.every(q => q.id && selectedRows.has(q.id))}
+                                            checked={data.length > 0 && data.every(q => q.id && selectedRows.has(q.id))}
                                             onChange={toggleSelectAll}
                                             className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
                                         />
@@ -231,7 +228,7 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
-                            {paginatedData.map((q) => {
+                            {data.map((q) => {
                                 const isExpanded = q.id ? expandedRows.has(q.id) : false;
 
                                 return (
@@ -397,10 +394,7 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                             <span className="text-sm text-gray-500">Show</span>
                             <select
                                 value={rowsPerPage}
-                                onChange={(e) => {
-                                    setRowsPerPage(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
+                                onChange={(e) => updateQuery({ limit: e.target.value, page: '1' })}
                                 className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none bg-white shadow-sm"
                             >
                                 <option value={5}>5</option>
@@ -411,14 +405,14 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                             <span className="text-sm text-gray-500">entries</span>
                         </div>
                         <span className="text-gray-500 text-center sm:text-left">
-                            Showing {data.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, data.length)} of {data.length} entries
+                            Showing {totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalCount)} of {totalCount} entries
                         </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            disabled={currentPage === 1 || data.length === 0}
+                            onClick={() => updateQuery({ page: String(Math.max(1, currentPage - 1)) })}
+                            disabled={currentPage === 1 || totalCount === 0}
                             className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:bg-white bg-white shadow-sm"
                         >
                             <ChevronLeft className="w-4 h-4" />
@@ -427,8 +421,8 @@ export default function ReportsTable({ data, isLoading, onRefresh, onDelete, onB
                             Page {currentPage} of {totalPages}
                         </span>
                         <button
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages || data.length === 0}
+                            onClick={() => updateQuery({ page: String(Math.min(totalPages, currentPage + 1)) })}
+                            disabled={currentPage === totalPages || totalCount === 0}
                             className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:bg-white bg-white shadow-sm"
                         >
                             <ChevronRightIcon className="w-4 h-4" />

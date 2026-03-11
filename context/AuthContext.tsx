@@ -42,16 +42,10 @@ const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
 // Refresh token 5 minutes before expiration
 const TOKEN_REFRESH_BUFFER = 5 * 60 * 1000;
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<AuthUser | null>(null);
-    // Optimistic: if there's no token cookie at all, we know immediately the user
-    // isn't logged in — no need to wait for /api/auth/me to confirm.
-    const [loading, setLoading] = useState<boolean>(() => {
-        if (typeof document !== 'undefined') {
-            return document.cookie.includes('vm_token');
-        }
-        return true; // SSR: default to loading until hydration
-    });
+export function AuthProvider({ children, initialUser }: { children: React.ReactNode, initialUser?: any }) {
+    const [user, setUser] = useState<AuthUser | null>(initialUser || null);
+    // Optimistic: if we have initialUser, we are NOT loading.
+    const [loading, setLoading] = useState<boolean>(!initialUser);
     const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const fetchMe = async (retryCount = 0) => {

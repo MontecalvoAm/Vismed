@@ -15,6 +15,7 @@ interface SearchableSelectProps {
 
 export default function SearchableSelect({ options, value, onChange, placeholder = 'Search...', displayKey = 'name', valueKey = 'id', renderOption }: SearchableSelectProps) {
     const [query, setQuery] = useState('');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
     const [open, setOpen] = useState(false);
     const [highlighted, setHighlighted] = useState(0);
     const containerRef = useRef(null);
@@ -23,8 +24,15 @@ export default function SearchableSelect({ options, value, onChange, placeholder
 
     const selected = options.find((o) => o[valueKey] === value);
 
-    const filtered = query.trim()
-        ? options.filter((o) => o[displayKey].toLowerCase().includes(query.toLowerCase()))
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedQuery(query);
+        }, 150);
+        return () => clearTimeout(handler);
+    }, [query]);
+
+    const filtered = debouncedQuery.trim()
+        ? options.filter((o) => o[displayKey].toLowerCase().includes(debouncedQuery.toLowerCase()))
         : options;
 
     useEffect(() => {

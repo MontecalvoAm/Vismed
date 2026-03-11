@@ -7,9 +7,9 @@
 // ============================================================
 
 import { useEffect, useState, useRef } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, Upload, Building2, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { getDepartments, addDepartment, updateDepartment, deleteDepartment, type Department } from '@/lib/firestore/departments';
+import { addDepartment, updateDepartment, deleteDepartment, type Department } from '@/lib/firestore/departments';
 import { useAuth } from '@/context/AuthContext';
 import FormModal from '@/components/manage/FormModal';
 import AccessDenied from '@/components/AccessDenied';
@@ -17,12 +17,27 @@ import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 const EMPTY_FORM = { DepartmentName: '', Description: '', SortOrder: 0 };
 
-export default function DepartmentManager() {
+interface DepartmentManagerProps {
+    paginatedDepartments: Department[];
+    totalCount: number;
+    activeCount: number;
+    totalPages: number;
+    serverAllDepartments: Department[]; // For duplicate checks during upload/save
+}
+
+export default function DepartmentManager({
+    paginatedDepartments,
+    totalCount,
+    activeCount,
+    totalPages,
+    serverAllDepartments
+}: DepartmentManagerProps) {
     const { user } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
     const perms = user?.Permissions?.Departments;
 
-    const [departments, setDepartments] = useState<Department[]>([]);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
@@ -37,23 +52,30 @@ export default function DepartmentManager() {
         message: ''
     });
 
-    // Filter & Search
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(5);
+    // URL Filter & Search
+    const searchTerm = searchParams.get('search') || '';
+    const currentPage = parseInt(searchParams.get('page') || '1', 10);
+    const rowsPerPage = parseInt(searchParams.get('limit') || '5', 10);
+
+    const updateQuery = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        Object.entries(updates).forEach(([key, val]) => {
+            if (val === null || val === '') params.delete(key);
+            else params.set(key, val);
+        });
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    };
 
     // Upload Excel state
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadData, setUploadData] = useState<any[] | null>(null);
     const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number } | null>(null);
 
-    const load = async () => {
-        setLoading(true);
-        try { setDepartments(await getDepartments()); }
-        finally { setLoading(false); }
-    };
+    const loading = false; // Kept for prop-compatibility
 
-    useEffect(() => { load(); }, []);
+    const refreshData = () => {
+        router.refresh();
+    };
 
     if (!perms?.CanView) return <AccessDenied moduleName="Departments" />;
 
@@ -64,7 +86,7 @@ export default function DepartmentManager() {
         e.preventDefault();
         setError('');
 
-        const isDuplicate = departments.some(
+        const isDuplicate = serverAllDepartments.some(
             d => d.DepartmentName.toLowerCase() === form.DepartmentName.trim().toLowerCase() && d.DepartmentID !== editTarget?.DepartmentID
         );
         if (isDuplicate) {
@@ -82,7 +104,7 @@ export default function DepartmentManager() {
             }
             setModalOpen(false);
             setFeedback({ isOpen: true, type: 'success', title: 'Success', message: editTarget ? 'Department updated successfully.' : 'Department added successfully.' });
-            await load();
+            refreshData();
         } catch {
             setError('Failed to save. Please try again.');
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save department. Please try again.' });
@@ -101,7 +123,7 @@ export default function DepartmentManager() {
                 next.delete(deleteConfirm.DepartmentID);
                 return next;
             });
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Department successfully deleted.' });
         } catch (err) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete department.' });
@@ -116,7 +138,7 @@ export default function DepartmentManager() {
             const promises = Array.from(selectedIds).map(id => deleteDepartment(id, by));
             await Promise.all(promises);
             setSelectedIds(new Set());
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected departments successfully deleted.' });
         } catch (err) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete selected departments.' });
@@ -128,8 +150,9 @@ export default function DepartmentManager() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
             try {
+                const XLSX = await import('xlsx');
                 const bstr = evt.target?.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const wsname = wb.SheetNames[0];
@@ -178,7 +201,7 @@ export default function DepartmentManager() {
                 const deptName = String(row.DepartmentName).trim();
                 const lowerDeptName = deptName.toLowerCase();
 
-                const existsInDb = departments.some(d => d.DepartmentName.toLowerCase() === lowerDeptName);
+                const existsInDb = serverAllDepartments.some(d => d.DepartmentName.toLowerCase() === lowerDeptName);
                 if (existsInDb || newlyCreatedDepts.has(lowerDeptName)) {
                     continue; // Skip duplicate
                 }
@@ -208,7 +231,7 @@ export default function DepartmentManager() {
 
             setUploadData(null);
             setUploadProgress(null);
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Upload Complete', message: 'Departments successfully uploaded and created.' });
         } catch (err) {
             setError('Failed to batch save uploaded data.');
@@ -219,19 +242,6 @@ export default function DepartmentManager() {
             setUploadProgress(null);
         }
     };
-
-    const activeCount = departments.filter(d => d.IsActive !== false).length;
-    const filteredDepartments = departments.filter(d =>
-        d.DepartmentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.Description.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const totalPages = Math.max(1, Math.ceil(filteredDepartments.length / rowsPerPage));
-    useEffect(() => {
-        if (currentPage > totalPages) setCurrentPage(totalPages);
-    }, [totalPages, currentPage]);
-
-    const paginatedDepartments = filteredDepartments.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
     const toggleSelectAll = () => {
         const visibleIds = paginatedDepartments.map(d => d.DepartmentID);
@@ -283,7 +293,7 @@ export default function DepartmentManager() {
                     <div>
                         <p className="text-xs text-gray-500 font-medium">Total Departments</p>
                         <p className="text-xl font-bold text-gray-900 mt-0.5">
-                            {loading ? '—' : departments.length}
+                            {loading ? '—' : totalCount}
                         </p>
                     </div>
                 </div>
@@ -309,8 +319,8 @@ export default function DepartmentManager() {
                             type="search"
                             placeholder="Search departments..."
                             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            defaultValue={searchTerm}
+                            onChange={(e) => updateQuery({ search: e.target.value || null, page: '1' })}
                         />
                         <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -415,10 +425,7 @@ export default function DepartmentManager() {
                                 <span className="text-sm text-slate-500">Show</span>
                                 <select
                                     value={rowsPerPage}
-                                    onChange={(e) => {
-                                        setRowsPerPage(Number(e.target.value));
-                                        setCurrentPage(1);
-                                    }}
+                                    onChange={(e) => updateQuery({ limit: e.target.value, page: '1' })}
                                     className="border border-slate-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none bg-white shadow-sm"
                                 >
                                     <option value={5}>5</option>
@@ -429,14 +436,14 @@ export default function DepartmentManager() {
                                 <span className="text-sm text-slate-500">entries</span>
                             </div>
                             <span className="text-slate-500 text-center sm:text-left">
-                                Showing {filteredDepartments.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filteredDepartments.length)} of {filteredDepartments.length} entries
+                                Showing {totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalCount)} of {totalCount} entries
                             </span>
                         </div>
 
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1 || filteredDepartments.length === 0}
+                                onClick={() => updateQuery({ page: String(Math.max(1, currentPage - 1)) })}
+                                disabled={currentPage === 1 || totalCount === 0}
                                 className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
                             >
                                 <ChevronLeft className="w-4 h-4" />
@@ -445,8 +452,8 @@ export default function DepartmentManager() {
                                 Page {currentPage} of {totalPages}
                             </span>
                             <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages || filteredDepartments.length === 0}
+                                onClick={() => updateQuery({ page: String(Math.min(totalPages, currentPage + 1)) })}
+                                disabled={currentPage === totalPages || totalCount === 0}
                                 className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
                             >
                                 <ChevronRight className="w-4 h-4" />

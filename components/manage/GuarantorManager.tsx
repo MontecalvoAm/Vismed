@@ -4,10 +4,10 @@
 //  VisayasMed — Guarantor Manager
 // ============================================================
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, Shield, LayoutGrid, ChevronLeft, ChevronRight, ChevronDown, ChevronRightIcon, FileText, FileSearch, Activity, User, Edit3, Printer, Calendar } from 'lucide-react';
-import { getGuarantors, addGuarantor, updateGuarantor, deleteGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
+import { addGuarantor, updateGuarantor, deleteGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
 import { getQuotationsByGuarantor, QuotationRecord, updateQuotationStatus, deleteQuotation } from '@/lib/firestore/quotations';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/context/ConfirmContext';
@@ -27,15 +27,27 @@ const statusStyles: Record<string, string> = {
     'Completed': 'bg-green-100 text-green-700',
 };
 
-export default function GuarantorManager() {
+interface GuarantorManagerProps {
+    paginatedGuarantors: GuarantorRecord[];
+    totalCount: number;
+    totalPages: number;
+    serverAllGuarantors: GuarantorRecord[];
+}
+
+export default function GuarantorManager({
+    paginatedGuarantors,
+    totalCount,
+    totalPages,
+    serverAllGuarantors
+}: GuarantorManagerProps) {
     const { user } = useAuth();
     const { alert, confirm } = useConfirm();
     const perms = user?.Permissions?.Guarantors;
     const historyPerms = user?.Permissions?.Reports; // For quotation actions in expanded rows
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
 
-    const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
@@ -68,17 +80,25 @@ export default function GuarantorManager() {
     const [quotationRowsPerPage, setQuotationRowsPerPage] = useState(5);
     const [reportModalOpen, setReportModalOpen] = useState(false);
 
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(5);
+    // URL Filter & Search
+    const searchTerm = searchParams.get('search') || '';
+    const currentPage = parseInt(searchParams.get('page') || '1', 10);
+    const rowsPerPage = parseInt(searchParams.get('limit') || '5', 10);
 
-    const load = async () => {
-        setLoading(true);
-        try { setGuarantors(await getGuarantors()); }
-        finally { setLoading(false); }
+    const updateQuery = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        Object.entries(updates).forEach(([key, val]) => {
+            if (val === null || val === '') params.delete(key);
+            else params.set(key, val);
+        });
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
     };
 
-    useEffect(() => { load(); }, []);
+    const loading = false; // Kept for prop-compatibility
+
+    const refreshData = () => {
+        router.refresh();
+    };
 
     if (!perms?.CanView) return <AccessDenied moduleName="Guarantors" />;
 
@@ -89,7 +109,7 @@ export default function GuarantorManager() {
         e.preventDefault();
         setError('');
 
-        const isDuplicate = guarantors.some(
+        const isDuplicate = serverAllGuarantors.some(
             d => d.Name.toLowerCase() === form.Name.trim().toLowerCase() && d.id !== editTarget?.id
         );
         if (isDuplicate) {
@@ -106,7 +126,7 @@ export default function GuarantorManager() {
             }
             setModalOpen(false);
             setFeedback({ isOpen: true, type: 'success', title: 'Success', message: editTarget ? 'Guarantor updated successfully.' : 'Guarantor added successfully.' });
-            await load();
+            refreshData();
         } catch {
             setError('Failed to save. Please try again.');
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save guarantor. Please try again.' });
@@ -125,7 +145,7 @@ export default function GuarantorManager() {
                 next.delete(deleteConfirm.id!);
                 return next;
             });
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Guarantor successfully deleted.' });
         } catch (err) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete guarantor.' });
@@ -139,27 +159,15 @@ export default function GuarantorManager() {
             const promises = Array.from(selectedIds).map(id => deleteGuarantor(id));
             await Promise.all(promises);
             setSelectedIds(new Set());
-            await load();
+            refreshData();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected guarantors successfully deleted.' });
         } catch (err) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete selected guarantors.' });
         } finally { setSaving(false); }
     };
 
-    const filtered = guarantors.filter(d =>
-        d.Name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (d.Description && d.Description.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-    useEffect(() => {
-        if (currentPage > totalPages) setCurrentPage(totalPages);
-    }, [totalPages, currentPage]);
-
-    const paginated = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
     const toggleSelectAll = () => {
-        const visibleIds = paginated.map(d => d.id!);
+        const visibleIds = paginatedGuarantors.map(d => d.id!);
         const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
 
         setSelectedIds(prev => {
@@ -304,7 +312,7 @@ export default function GuarantorManager() {
                     <div>
                         <p className="text-xs text-gray-500 font-medium">Total Guarantors</p>
                         <p className="text-xl font-bold text-gray-900 mt-0.5">
-                            {loading ? '—' : guarantors.length}
+                            {loading ? '—' : totalCount}
                         </p>
                     </div>
                 </div>
@@ -319,8 +327,8 @@ export default function GuarantorManager() {
                             type="search"
                             placeholder="Search guarantors..."
                             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-slate-700"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            defaultValue={searchTerm}
+                            onChange={(e) => updateQuery({ search: e.target.value || null, page: '1' })}
                         />
                         <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -355,7 +363,7 @@ export default function GuarantorManager() {
                                     <th className="px-5 py-3.5 w-10">
                                         <input
                                             type="checkbox"
-                                            checked={paginated.length > 0 && paginated.every(d => selectedIds.has(d.id!))}
+                                            checked={paginatedGuarantors.length > 0 && paginatedGuarantors.every(d => selectedIds.has(d.id!))}
                                             onChange={toggleSelectAll}
                                             className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
                                         />
@@ -369,9 +377,9 @@ export default function GuarantorManager() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {paginated.length === 0 ? (
+                                {paginatedGuarantors.length === 0 ? (
                                     <tr><td colSpan={(perms?.CanEdit || perms?.CanDelete) ? 5 : 4} className="px-5 py-10 text-center text-slate-400">No guarantors found.</td></tr>
-                                ) : paginated.map((d) => (
+                                ) : paginatedGuarantors.map((d) => (
                                     <React.Fragment key={d.id}>
                                         <tr className={`odd:bg-white even:bg-slate-50/50 hover:bg-slate-100 transition-colors group cursor-pointer ${expandedRow === d.id ? 'bg-primary/5' : ''}`} onClick={(e) => handleRowExpand(d.id!, e)}>
                                             <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
@@ -713,10 +721,7 @@ export default function GuarantorManager() {
                                 <span className="text-sm text-slate-500">Show</span>
                                 <select
                                     value={rowsPerPage}
-                                    onChange={(e) => {
-                                        setRowsPerPage(Number(e.target.value));
-                                        setCurrentPage(1);
-                                    }}
+                                    onChange={(e) => updateQuery({ limit: e.target.value, page: '1' })}
                                     className="border border-slate-300 rounded-md text-sm py-1 px-2 focus:ring-primary focus:border-primary outline-none bg-white shadow-sm"
                                 >
                                     <option value={5}>5</option>
@@ -727,14 +732,14 @@ export default function GuarantorManager() {
                                 <span className="text-sm text-slate-500">entries</span>
                             </div>
                             <span className="text-slate-500 text-center sm:text-left">
-                                Showing {filtered.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filtered.length)} of {filtered.length} entries
+                                Showing {totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalCount)} of {totalCount} entries
                             </span>
                         </div>
 
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1 || filtered.length === 0}
+                                onClick={() => updateQuery({ page: String(Math.max(1, currentPage - 1)) })}
+                                disabled={currentPage === 1 || totalCount === 0}
                                 className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
                             >
                                 <ChevronLeft className="w-4 h-4" />
@@ -743,8 +748,8 @@ export default function GuarantorManager() {
                                 Page {currentPage} of {totalPages}
                             </span>
                             <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages || filtered.length === 0}
+                                onClick={() => updateQuery({ page: String(Math.min(totalPages, currentPage + 1)) })}
+                                disabled={currentPage === totalPages || totalCount === 0}
                                 className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
                             >
                                 <ChevronRight className="w-4 h-4" />
@@ -827,7 +832,7 @@ export default function GuarantorManager() {
                 <GuarantorReportModal
                     isOpen={reportModalOpen}
                     onClose={() => setReportModalOpen(false)}
-                    guarantor={guarantors.find(g => g.id === expandedRow) || null}
+                    guarantor={serverAllGuarantors.find(g => g.id === expandedRow) || null}
                     preparedBy={user ? `${user.FirstName} ${user.LastName}` : 'System Admin'}
                     quotations={expandedData.filter(q => {
                         const matchesSearch = (q.DocumentNo || '').toLowerCase().includes(quotationSearchTerm.toLowerCase()) ||

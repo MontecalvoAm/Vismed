@@ -2,42 +2,26 @@
 
 // ============================================================
 //  VisayasMed — Dynamic Service Selector
-//  Pulls Departments and Services directly from Firestore
+//  Receives Departments and Services from Server 
 // ============================================================
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import SearchableSelect from '@/components/ui/SearchableSelect';
-import { Plus, Minus, X, AlertCircle, Loader2 } from 'lucide-react';
-import { getDepartments, type Department } from '@/lib/firestore/departments';
-import { getAllServices, type Service } from '@/lib/firestore/services';
+import { Plus, Minus, X, AlertCircle } from 'lucide-react';
+import type { Department } from '@/lib/firestore/departments';
+import type { Service } from '@/lib/firestore/services';
 
 const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
-export default function ServiceSelector({ items, onChange, onNext, onBack }: any) {
-    const [departments, setDepartments] = useState<Department[]>([]);
-    const [services, setServices] = useState<Service[]>([]);
-    const [loading, setLoading] = useState(true);
+export default function ServiceSelector({ items, onChange, onNext, onBack, initialDepartments = [], initialServices = [] }: any) {
+    const departments = initialDepartments as Department[];
+    const services = initialServices as Service[];
 
     const [selectedDeptId, setSelectedDeptId] = useState('');
     const [selectedServiceId, setSelectedServiceId] = useState('');
     const [sessions, setSessions] = useState(1);
     const [error, setError] = useState('');
 
-    useEffect(() => {
-        const load = async () => {
-            try {
-                const [d, s] = await Promise.all([getDepartments(), getAllServices()]);
-                setDepartments(d);
-                setServices(s);
-            } catch (err: any) {
-                console.error("Firestore Loading Error:", err);
-                setError(`Failed to load data: ${err?.message || 'Unknown error'}`);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
-    }, []);
 
     const selectedDept = departments.find((d) => d.DepartmentID === selectedDeptId);
     const serviceOptions = services.filter((s) => s.DepartmentID === selectedDeptId);
@@ -99,15 +83,6 @@ export default function ServiceSelector({ items, onChange, onNext, onBack }: any
         acc[item.deptName].push(item);
         return acc;
     }, {});
-
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-sm font-medium text-slate-500">Loading catalog from VisayasMed servers...</p>
-            </div>
-        );
-    }
 
     return (
         <div className="flex flex-col lg:flex-row gap-8">

@@ -1,265 +1,116 @@
-'use client';
+import { getServerUser } from '@/lib/getServerUser';
+import ReportsPageView from './ReportsPageView';
+import { adminDb } from '@/lib/firebaseAdmin';
 
-import { useState, useEffect, useMemo } from 'react';
-import { QuotationRecord, getQuotations, computeTotalQuantity, deleteQuotation } from '@/lib/firestore/quotations';
-import { getGuarantors, GuarantorRecord } from '@/lib/firestore/guarantors';
-import { createAuditLog } from '@/lib/firestore/audit';
-import { useConfirm } from '@/context/ConfirmContext';
-import ReportsFilter from '@/components/reports/ReportsFilter';
-import ReportsTable from '@/components/reports/ReportsTable';
-import SidebarLayout from '@/components/layout/SidebarLayout';
-import { History, FileText, CheckCircle, AlertCircle, Clock } from 'lucide-react';
-import { FeedbackModal } from '@/components/ui/FeedbackModal';
+export const dynamic = 'force-dynamic';
 
-export default function ReportsPage() {
-    const { alert } = useConfirm();
-    const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
-        isOpen: false,
-        type: 'success',
-        title: '',
-        message: ''
+export default async function ReportsPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+    const searchParams = await props.searchParams;
+    await getServerUser();
+
+    // Filters from URL
+    const searchTerm = (searchParams.search as string) || '';
+    const statusFilter = (searchParams.status as string) || 'all';
+    const dateFrom = (searchParams.from as string) || '';
+    const dateTo = (searchParams.to as string) || '';
+    const guarantorFilter = (searchParams.guarantor as string) || 'all';
+    const currentPage = parseInt((searchParams.page as string) || '1', 10);
+    const rowsPerPage = parseInt((searchParams.limit as string) || '10', 10);
+
+    // Fetch all quotations to apply in-memory JS filtering & stat calculation 
+    // This replicates the behavior of the massive client payload but does it on the server!
+    let snap;
+    try {
+        snap = await adminDb.collection('T_Quotation').orderBy('CreatedAt', 'desc').get();
+    } catch {
+        snap = await adminDb.collection('T_Quotation').get();
+    }
+
+    const allQuotations = snap.docs
+        .map(d => {
+            const data = d.data();
+            return {
+                id: d.id,
+                ...data,
+                CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
+                UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
+            };
+        })
+        .filter((q: any) => q.IsDeleted !== true);
+
+    const gSnap = await adminDb.collection('T_Guarantor').where('IsDeleted', '!=', true).get();
+    const initialGuarantors = gSnap.docs.map(d => {
+        const data = d.data() as any;
+        return {
+            id: d.id,
+            ...data,
+            CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
+            UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
+        }
     });
 
-    // Filters
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [guarantorFilter, setGuarantorFilter] = useState('all');
-    const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
+    const dynamicStatuses = Array.from(new Set(allQuotations.map(q => q.Status).filter(Boolean))) as string[];
+    dynamicStatuses.sort();
 
-    const load = async () => {
-        setLoading(true);
-        try {
-            const data = await getQuotations();
-            setQuotations(data);
-        } catch (err) {
-            console.error('Error fetching history:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Apply JS filters exactly like the original client code
+    let filteredData = allQuotations;
 
-    const loadGuarantors = async () => {
-        try {
-            const data = await getGuarantors();
-            setGuarantors(data);
-        } catch (err) {
-            console.error('Error fetching guarantors:', err);
-        }
-    };
+    if (searchTerm) {
+        const qStr = searchTerm.toLowerCase();
+        filteredData = filteredData.filter(
+            (r: any) =>
+                (r.CustomerFirstName ?? '').toLowerCase().includes(qStr) ||
+                (r.CustomerLastName ?? '').toLowerCase().includes(qStr) ||
+                (r.CustomerName ?? '').toLowerCase().includes(qStr) ||
+                (r.CustomerEmail ?? '').toLowerCase().includes(qStr) ||
+                (r.DocumentNo ?? '').toLowerCase().includes(qStr) ||
+                (r.GuarantorName ?? '').toLowerCase().includes(qStr) ||
+                (r.Items ?? []).some((item: any) => (item.Name ?? '').toLowerCase().includes(qStr))
+        );
+    }
 
-    const handleDeleteQuotation = async (id: string) => {
-        try {
-            const qToDel = quotations.find(q => q.id === id);
-            await deleteQuotation(id);
-            if (qToDel) {
-                await createAuditLog({
-                    Action: 'Deleted Quotation',
-                    Module: 'Quotation',
-                    RecordID: id,
-                    Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
-                });
-            }
-            load();
-            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Quotation successfully deleted.' });
-        } catch (err) {
-            console.error('Error deleting:', err);
-            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete quotation.' });
-        }
-    };
+    if (statusFilter !== 'all') {
+        filteredData = filteredData.filter((r) => r.Status === statusFilter);
+    }
 
-    const handleBulkDeleteQuotation = async (ids: string[]) => {
-        try {
-            await Promise.all(ids.map(async (id) => {
-                const qToDel = quotations.find(q => q.id === id);
-                await deleteQuotation(id);
-                if (qToDel) {
-                    await createAuditLog({
-                        Action: 'Deleted Quotation (Bulk)',
-                        Module: 'Quotation',
-                        RecordID: id,
-                        Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
-                    });
-                }
-            }));
-            load();
-            setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected quotations successfully deleted.' });
-        } catch (err) {
-            console.error('Error bulk deleting:', err);
-            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete some or all selected quotations.' });
-        }
-    };
+    if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        filteredData = filteredData.filter((r) => r.CreatedAt && new Date(r.CreatedAt) >= fromDate);
+    }
 
-    // Calculate dynamic statuses
-    const dynamicStatuses = useMemo(() => {
-        const s = new Set<string>();
-        quotations.forEach(q => {
-            if (q.Status) s.add(q.Status);
-        });
-        return Array.from(s).sort();
-    }, [quotations]);
+    if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filteredData = filteredData.filter((r) => r.CreatedAt && new Date(r.CreatedAt) <= toDate);
+    }
 
-    useEffect(() => {
-        load();
-        loadGuarantors();
-    }, []);
+    if (guarantorFilter !== 'all') {
+        filteredData = filteredData.filter((r) => r.GuarantorName === guarantorFilter);
+    }
 
-    const filteredData = useMemo(() => {
-        let result = quotations;
+    // Compute Stats summary based on filtered data NOT paginated data
+    const completeQuotationsCount = filteredData.filter((q) => q.Status === 'Completed').length;
+    const incompleteQuotationsCount = filteredData.filter((q) => q.Status === 'Incomplete').length;
+    const waitingQuotationsCount = filteredData.filter((q) => q.Status === 'Waiting for Approval').length;
 
-        if (searchTerm) {
-            const qStr = searchTerm.toLowerCase();
-            result = result.filter(
-                (r) =>
-                    (r.CustomerFirstName ?? '').toLowerCase().includes(qStr) ||
-                    (r.CustomerLastName ?? '').toLowerCase().includes(qStr) ||
-                    (r.CustomerName ?? '').toLowerCase().includes(qStr) ||
-                    (r.CustomerEmail ?? '').toLowerCase().includes(qStr) ||
-                    (r.DocumentNo ?? '').toLowerCase().includes(qStr) ||
-                    (r.GuarantorName ?? '').toLowerCase().includes(qStr) ||
-                    (r.Items ?? []).some(item => (item.Name ?? '').toLowerCase().includes(qStr))
-            );
-        }
-
-        if (statusFilter !== 'all') {
-            result = result.filter((r) => r.Status === statusFilter);
-        }
-
-        if (dateFrom) {
-            const from = new Date(dateFrom);
-            result = result.filter((r) => r.CreatedAt && new Date(r.CreatedAt) >= from);
-        }
-
-        if (dateTo) {
-            const to = new Date(dateTo);
-            to.setHours(23, 59, 59, 999);
-            result = result.filter((r) => r.CreatedAt && new Date(r.CreatedAt) <= to);
-        }
-
-        if (guarantorFilter !== 'all') {
-            result = result.filter((r) => r.GuarantorName === guarantorFilter);
-        }
-
-        return result;
-    }, [quotations, searchTerm, statusFilter, dateFrom, dateTo, guarantorFilter]);
-
-    // Computed stats
-    const completeQuotations = useMemo(
-        () => filteredData.filter((q) => q.Status === 'Completed').length,
-        [filteredData]
-    );
-    const incompleteQuotations = useMemo(
-        () => filteredData.filter((q) => q.Status === 'Incomplete').length,
-        [filteredData]
-    );
-    const waitingQuotations = useMemo(
-        () => filteredData.filter((q) => q.Status === 'Waiting for Approval').length,
-        [filteredData]
-    );
-
-    const stats = [
-        {
-            label: 'Total Quotations',
-            value: filteredData.length,
-            icon: <FileText className="w-5 h-5" />,
-            color: 'bg-blue-50 text-blue-600',
-            format: (v: number) => v.toString(),
-        },
-        {
-            label: 'Complete Quotations',
-            value: completeQuotations,
-            icon: <CheckCircle className="w-5 h-5" />,
-            color: 'bg-green-50 text-green-600',
-            format: (v: number) => v.toString(),
-        },
-        {
-            label: 'Incomplete Quotations',
-            value: incompleteQuotations,
-            icon: <AlertCircle className="w-5 h-5" />,
-            color: 'bg-rose-50 text-rose-600',
-            format: (v: number) => v.toString(),
-        },
-        {
-            label: 'Waiting for Approval',
-            value: waitingQuotations,
-            icon: <Clock className="w-5 h-5" />,
-            color: 'bg-amber-50 text-amber-600',
-            format: (v: number) => v.toString(),
-        },
-    ];
+    // Paginate
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
+    const safeCurrentPage = Math.min(currentPage, totalPages);
+    const paginatedQuotations = filteredData.slice((safeCurrentPage - 1) * rowsPerPage, safeCurrentPage * rowsPerPage);
 
     return (
-        <SidebarLayout pageTitle="Quotation Records">
-            <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                            <History className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Quotation Records</h1>
-                            <p className="text-gray-500 mt-0.5">Track all past quotations, sessions, and client activity.</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {stats.map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center gap-4"
-                        >
-                            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${stat.color}`}>
-                                {stat.icon}
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 font-medium">{stat.label}</p>
-                                <p className="text-xl font-bold text-gray-900 mt-0.5">
-                                    {loading ? '—' : stat.format(stat.value)}
-                                </p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Filters */}
-                <ReportsFilter
-                    searchTerm={searchTerm}
-                    onSearchChange={setSearchTerm}
-                    statusFilter={statusFilter}
-                    onStatusChange={setStatusFilter}
-                    guarantorFilter={guarantorFilter}
-                    onGuarantorChange={setGuarantorFilter}
-                    availableGuarantors={guarantors.map(g => ({ id: g.id!, Name: g.Name }))}
-                    dateFrom={dateFrom}
-                    onDateFromChange={setDateFrom}
-                    dateTo={dateTo}
-                    onDateToChange={setDateTo}
-                    availableStatuses={dynamicStatuses}
-                />
-
-                {/* Table */}
-                <ReportsTable
-                    data={filteredData}
-                    isLoading={loading}
-                    onRefresh={load}
-                    onDelete={handleDeleteQuotation}
-                    onBulkDelete={handleBulkDeleteQuotation}
-                />
-            </div>
-
-            <FeedbackModal
-                isOpen={feedback.isOpen}
-                type={feedback.type}
-                title={feedback.title}
-                message={feedback.message}
-                onClose={() => setFeedback(f => ({ ...f, isOpen: false }))}
-            />
-        </SidebarLayout>
+        <ReportsPageView
+            paginatedQuotations={paginatedQuotations as any}
+            totalQuotationsCount={allQuotations.length}
+            completeQuotationsCount={completeQuotationsCount}
+            incompleteQuotationsCount={incompleteQuotationsCount}
+            waitingQuotationsCount={waitingQuotationsCount}
+            filteredQuotationsCount={filteredData.length}
+            totalPages={totalPages}
+            guarantors={initialGuarantors as any}
+            dynamicStatuses={dynamicStatuses}
+        />
     );
 }

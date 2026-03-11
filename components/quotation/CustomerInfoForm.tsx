@@ -1,18 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight, Shield, Layers } from 'lucide-react';
-import { getGuarantors, addGuarantor, GuarantorRecord } from '@/lib/firestore/guarantors';
+import { UserSquare2, Phone, Mail, MapPin, FileText, Calendar, ArrowRight, Shield } from 'lucide-react';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
+import { addGuarantorAction } from '@/app/actions/setupActions';
 
 interface CustomerInfoFormProps {
     data: any;
     onChange: (data: any) => void;
     onNext: () => void;
+    initialGuarantors: any[];
 }
 
-export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInfoFormProps) {
-    const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
+export default function CustomerInfoForm({ data, onChange, onNext, initialGuarantors }: CustomerInfoFormProps) {
+    const [guarantors, setGuarantors] = useState<any[]>(initialGuarantors || []);
     const [guarantorSearch, setGuarantorSearch] = useState('');
     const [isGuarantorOpen, setIsGuarantorOpen] = useState(false);
     const [isCreatingGuarantor, setIsCreatingGuarantor] = useState(false);
@@ -22,10 +23,6 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
         title: '',
         message: ''
     });
-
-    useEffect(() => {
-        getGuarantors().then(setGuarantors).catch(console.error);
-    }, []);
 
     useEffect(() => {
         if (data.guarantorName && !guarantorSearch) {
@@ -165,12 +162,16 @@ export default function CustomerInfoForm({ data, onChange, onNext }: CustomerInf
                                     // Auto-create the new guarantor
                                     setIsCreatingGuarantor(true);
                                     try {
-                                        const newId = await addGuarantor({ Name: trimmed });
-                                        const refreshed = await getGuarantors();
-                                        setGuarantors(refreshed);
-                                        setGuarantorSearch(trimmed);
-                                        onChange({ ...data, guarantorId: newId, guarantorName: trimmed });
-                                        setFeedback({ isOpen: true, type: 'success', title: 'Created', message: `Guarantor '${trimmed}' added successfully.` });
+                                        const res = await addGuarantorAction({ Name: trimmed });
+                                        if (res.success) {
+                                            const newGuarantor = { id: res.id, Name: res.name };
+                                            setGuarantors(prev => [...prev, newGuarantor]);
+                                            setGuarantorSearch(trimmed);
+                                            onChange({ ...data, guarantorId: res.id, guarantorName: trimmed });
+                                            setFeedback({ isOpen: true, type: 'success', title: 'Created', message: `Guarantor '${trimmed}' added successfully.` });
+                                        } else {
+                                            throw new Error(res.error);
+                                        }
                                     } catch (err) {
                                         console.error('Auto-create guarantor failed:', err);
                                         setFeedback({ isOpen: true, type: 'error', title: 'Failed', message: 'Could not auto-create guarantor.' });

@@ -75,17 +75,24 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
 
     useEffect(() => {
         let isMounted = true;
+        const cachedModules = typeof window !== 'undefined' ? sessionStorage.getItem('vm_modules') : null;
+
+        if (cachedModules) {
+            setModules(JSON.parse(cachedModules));
+            setModulesLoading(false);
+        }
 
         fetch('/api/modules')
             .then(res => res.json())
             .then(data => {
                 if (isMounted && data.success) {
                     setModules(data.modules || []);
+                    sessionStorage.setItem('vm_modules', JSON.stringify(data.modules || []));
                 }
             })
             .catch(err => console.error("Failed to fetch modules for sidebar", err))
             .finally(() => {
-                if (isMounted) setModulesLoading(false);
+                if (isMounted && !cachedModules) setModulesLoading(false);
             });
 
         return () => { isMounted = false; };
@@ -131,10 +138,30 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
 
     if (loading || modulesLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-500 text-sm">Loading your workspace...</p>
+            <div className="min-h-screen flex text-slate-900 bg-brand-light-grey/20">
+                {/* Sidebar Skeleton */}
+                <aside className="hidden md:flex flex-col w-64 bg-[#234b8c] text-white shrink-0 relative overflow-hidden">
+                    <div className="h-20 px-6 border-b border-white/10 flex items-center shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-white/10 animate-pulse" />
+                        <div className="ml-3 h-4 w-24 bg-white/10 rounded animate-pulse" />
+                    </div>
+                    <div className="flex-1 py-6 px-4 space-y-3">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} className="w-full h-10 rounded-xl bg-white/5 animate-pulse" />
+                        ))}
+                    </div>
+                </aside>
+
+                <div className="flex-1 flex flex-col min-w-0">
+                    {/* Header Skeleton */}
+                    <header className="h-16 border-b border-slate-200 bg-white/50 flex items-center justify-between px-4 sm:px-6">
+                        <div className="h-4 w-32 bg-slate-200 rounded animate-pulse hidden md:block" />
+                        <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse ml-auto" />
+                    </header>
+                    <main className="flex-1 p-8">
+                        <div className="h-32 bg-slate-100 rounded-2xl animate-pulse mb-6" />
+                        <div className="h-64 bg-slate-100 rounded-2xl animate-pulse" />
+                    </main>
                 </div>
             </div>
         );

@@ -19,6 +19,7 @@
         "puppeteer": "^24.37.5",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
+        "server-only": "^0.0.1",
         "xlsx": "^0.18.5"
     },
     "devDependencies": {
