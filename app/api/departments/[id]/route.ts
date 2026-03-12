@@ -1,23 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
-import * as admin from 'firebase-admin';
 
-const COL = 'M_Department';
 const MODULE_NAME = 'Departments';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
     if (error) return error;
 
     try {
         const resolvedParams = await params;
         const body = await req.json();
+        const { DepartmentName, Icon, Description, SortOrder, IsActive } = body;
 
-        await adminDb.collection(COL).doc(resolvedParams.id).update({
-            ...body,
-            UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            UpdatedBy: user?.UserID,
+        await prisma.m_Department.update({
+            where: { DepartmentID: resolvedParams.id },
+            data: {
+                DepartmentName: DepartmentName !== undefined ? DepartmentName : undefined,
+                Icon: Icon !== undefined ? Icon : undefined,
+                Description: Description !== undefined ? Description : undefined,
+                SortOrder: SortOrder !== undefined ? Number(SortOrder) : undefined,
+                IsActive: IsActive !== undefined ? Boolean(IsActive) : undefined,
+            },
         });
 
         return NextResponse.json({ success: true });
@@ -27,18 +31,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
     if (error) return error;
 
     try {
         const resolvedParams = await params;
 
-        // Soft delete — move to archive
-        await adminDb.collection(COL).doc(resolvedParams.id).update({
-            IsDeleted: true,
-            IsActive: false,
-            UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            UpdatedBy: user?.UserID,
+        // Soft delete
+        await prisma.m_Department.update({
+            where: { DepartmentID: resolvedParams.id },
+            data: {
+                IsDeleted: true,
+                IsActive: false,
+            },
         });
 
         return NextResponse.json({ success: true });

@@ -1,11 +1,7 @@
 // ============================================================
-//  VisayasMed — Firestore: Users (M_User)
+//  VisayasMed — Client-side Adapter: Users
+//  Calls local API instead of direct Firebase
 // ============================================================
-
-import {
-    collection, doc, getDoc, getDocs, updateDoc, serverTimestamp, query,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 export interface UserRecord {
     UserID: string;
@@ -20,26 +16,30 @@ export interface UserRecord {
     UpdatedBy?: string;
 }
 
-const COL = 'M_User';
-
 export async function getUserRecord(UserID: string): Promise<UserRecord | null> {
-    const snap = await getDoc(doc(db, COL, UserID));
-    if (!snap.exists()) return null;
-    return { UserID: snap.id, ...snap.data() } as UserRecord;
+    const res = await fetch(`/api/users/${UserID}`);
+    if (!res.ok) return null;
+    
+    const data = await res.json();
+    if (!data.success) return null;
+    
+    return data.user as UserRecord;
 }
 
 export async function getAllUsers(): Promise<UserRecord[]> {
-    const snap = await getDocs(query(collection(db, COL)));
-    return snap.docs
-        .map((d) => ({ UserID: d.id, ...d.data() } as UserRecord))
-        .filter((u) => u.IsDeleted !== true);
+    const res = await fetch('/api/users');
+    if (!res.ok) throw new Error('Failed to fetch users');
+    
+    const data = await res.json();
+    return data.users || [];
 }
 
 export async function getArchivedUsers(): Promise<UserRecord[]> {
-    const snap = await getDocs(query(collection(db, COL)));
-    return snap.docs
-        .map((d) => ({ UserID: d.id, ...d.data() } as UserRecord))
-        .filter((u) => u.IsDeleted === true);
+    const res = await fetch('/api/archive?tab=users');
+    if (!res.ok) throw new Error('Failed to fetch archived users');
+    
+    const data = await res.json();
+    return data.records || [];
 }
 
 export async function updateUserRole(
@@ -47,11 +47,16 @@ export async function updateUserRole(
     RoleID: string,
     updatedBy: string
 ): Promise<void> {
-    await updateDoc(doc(db, COL, UserID), {
-        RoleID,
-        UpdatedAt: serverTimestamp(),
-        UpdatedBy: updatedBy,
+    const res = await fetch(`/api/users/${UserID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ RoleID, UpdatedBy: updatedBy }),
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update user role');
+    }
 }
 
 export async function setUserActiveStatus(
@@ -59,9 +64,14 @@ export async function setUserActiveStatus(
     IsActive: boolean,
     updatedBy: string
 ): Promise<void> {
-    await updateDoc(doc(db, COL, UserID), {
-        IsActive,
-        UpdatedAt: serverTimestamp(),
-        UpdatedBy: updatedBy,
+    const res = await fetch(`/api/users/${UserID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ IsActive, UpdatedBy: updatedBy }),
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to set user active status');
+    }
 }

@@ -1,7 +1,8 @@
 import DepartmentManager from '@/components/manage/DepartmentManager';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import { getServerUser } from '@/lib/getServerUser';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
+import AccessDenied from '@/components/AccessDenied';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,25 +13,28 @@ export default async function DepartmentsPage(props: {
     const serverUser = await getServerUser();
 
     if (!(serverUser as any)?.Permissions?.Departments?.CanView) {
-        return null;
+        return (
+            <SidebarLayout pageTitle="Departments Management">
+                <AccessDenied moduleName="Departments" />
+            </SidebarLayout>
+        );
     }
 
     const searchTerm = (searchParams.search as string) || '';
     const currentPage = parseInt((searchParams.page as string) || '1', 10);
     const rowsPerPage = parseInt((searchParams.limit as string) || '5', 10);
 
-    const snap = await adminDb.collection('M_Department').orderBy('SortOrder', 'asc').get();
+    const departments = await prisma.m_Department.findMany({
+        where: { IsDeleted: false },
+        orderBy: { SortOrder: 'asc' }
+    });
 
-    // Parse
-    const allDepartments = snap.docs.map(d => {
-        const data = d.data() as any;
-        return {
-            DepartmentID: d.id,
-            ...data,
-            CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
-            UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
-        };
-    }).filter(d => d.IsDeleted !== true);
+    const allDepartments = departments.map(d => ({
+        ...d,
+        id: d.DepartmentID, // For client component compatibility
+        CreatedAt: d.CreatedAt.toISOString(),
+        UpdatedAt: d.UpdatedAt.toISOString(),
+    }));
 
     const activeCount = allDepartments.filter(d => d.IsActive !== false).length;
 

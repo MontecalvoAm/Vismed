@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
-import * as admin from 'firebase-admin';
+import { invalidatePermCache } from '@/lib/permCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,26 +9,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     try {
         const { id: userID } = await params;
 
-        // 1. Get user to find RoleID
-        const userDoc = await adminDb.collection('M_User').doc(userID).get();
-        if (!userDoc.exists) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
-
-        const roleID = userDoc.data()?.RoleID;
-
-        // 2. Get base role permissions
-        const rolePermsQuery = await adminDb.collection('MT_RolePermission').where('RoleID', '==', roleID).get();
-        const rolePerms: Record<string, any> = {};
-        rolePermsQuery.docs.forEach(d => {
-            const data = d.data();
-            rolePerms[data.ModuleName] = { ...data };
+        const user = await prisma.m_User.findUnique({
+            where: { UserID: userID },
+            include: {
+                Role: {
+                    include: {
+                        Permissions: true
+                    }
+                },
+                Overrides: true
+            }
         });
 
-        // 3. Get user overrides
-        const overridesQuery = await adminDb.collection('MT_UserOverride').where('UserID', '==', userID).get();
+        if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+
+        const rolePerms: Record<string, any> = {};
+        user.Role?.Permissions.forEach(p => {
+            rolePerms[p.ModuleName] = { ...p };
+        });
+
         const overrides: Record<string, any> = {};
-        overridesQuery.docs.forEach(d => {
-            const data = d.data();
-            overrides[data.ModuleName] = { ...data };
+        user.Overrides.forEach(o => {
+            overrides[o.ModuleName] = { ...o };
         });
 
         return NextResponse.json({ success: true, rolePerms, overrides });
@@ -46,34 +48,32 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         const body = await req.json();
         const { overrides } = body;
 
-        const batch = adminDb.batch();
+        await prisma.$transaction(async (tx) => {
+            // 1. Delete existing overrides for this user
+            await tx.mT_UserOverride.deleteMany({
+                where: { UserID: userID }
+            });
 
-        // 1. Delete existing overrides for this user
-        const existingQuery = await adminDb.collection('MT_UserOverride').where('UserID', '==', userID).get();
-        existingQuery.docs.forEach(d => {
-            batch.delete(d.ref);
+            // 2. Insert new overrides
+            if (overrides && typeof overrides === 'object') {
+                const dataToInsert = Object.entries(overrides).map(([moduleName, perms]: [string, any]) => ({
+                    UserID: userID,
+                    ModuleName: moduleName,
+                    CanView: perms.CanView === true || String(perms.CanView).toLowerCase() === 'true',
+                    CanAdd: perms.CanAdd === true || String(perms.CanAdd).toLowerCase() === 'true',
+                    CanEdit: perms.CanEdit === true || String(perms.CanEdit).toLowerCase() === 'true',
+                    CanDelete: perms.CanDelete === true || String(perms.CanDelete).toLowerCase() === 'true',
+                }));
+
+                if (dataToInsert.length > 0) {
+                    await tx.mT_UserOverride.createMany({
+                        data: dataToInsert
+                    });
+                }
+            }
         });
 
-        // 2. Insert new overrides
-        for (const [moduleName, perms] of Object.entries(overrides || {})) {
-            const p = perms as any;
-
-            // Note: we save the override even if they are all false, to explicitly DENY access
-            // that a role might otherwise grant.
-            const newRef = adminDb.collection('MT_UserOverride').doc();
-            batch.set(newRef, {
-                UserID: userID,
-                ModuleName: moduleName,
-                CanView: p.CanView === true || String(p.CanView).toLowerCase() === 'true',
-                CanAdd: p.CanAdd === true || String(p.CanAdd).toLowerCase() === 'true',
-                CanEdit: p.CanEdit === true || String(p.CanEdit).toLowerCase() === 'true',
-                CanDelete: p.CanDelete === true || String(p.CanDelete).toLowerCase() === 'true',
-                CreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-        }
-
-        await batch.commit();
+        invalidatePermCache(userID);
 
         return NextResponse.json({ success: true });
     } catch (e: any) {

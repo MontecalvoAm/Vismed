@@ -1,59 +1,74 @@
 import { getServerUser } from '@/lib/getServerUser';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import EditQuotationClient from './EditQuotationClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditQuotationPage({ params }: { params: { id: string } }) {
+export default async function EditQuotationPage(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     await getServerUser();
 
     // Fetch initial data on the server
     const [dSnap, sSnap, gSnap, qDoc] = await Promise.all([
-        adminDb.collection('M_Department').where('IsActive', '==', true).get(),
-        adminDb.collection('M_Service').where('IsActive', '==', true).get(),
-        adminDb.collection('T_Guarantor').where('IsDeleted', '!=', true).get(), // Using IsDeleted != true for active guarantors
-        adminDb.collection('T_Quotation').doc(params.id).get()
+        prisma.m_Department.findMany({ where: { IsActive: true, IsDeleted: false } as any, orderBy: { SortOrder: 'asc' } }),
+        prisma.m_Service.findMany({ where: { IsActive: true, IsDeleted: false } as any, orderBy: { ServiceName: 'asc' } }),
+        (prisma as any).t_Guarantor.findMany({ where: { IsDeleted: false } as any, orderBy: { Name: 'asc' } }),
+        prisma.t_Quotation.findUnique({
+            where: { QuotationID: params.id },
+            include: { Items: true }
+        })
     ]);
 
-    if (!qDoc.exists) {
+    if (!qDoc) {
         redirect('/reports');
     }
 
     const quotation = {
-        id: qDoc.id,
-        ...qDoc.data(),
-        CreatedAt: qDoc.data()?.CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: qDoc.data()?.UpdatedAt?.toDate?.()?.toISOString() || null,
+        ...qDoc,
+        id: qDoc.QuotationID,
+        Discount: qDoc.Discount ? Number(qDoc.Discount) : 0,
+        TotalAmount: qDoc.TotalAmount ? Number(qDoc.TotalAmount) : 0,
+        Subtotal: qDoc.Subtotal ? Number(qDoc.Subtotal) : 0,
+        Vat: qDoc.Vat ? Number(qDoc.Vat) : 0,
+        CreatedAt: qDoc.CreatedAt.toISOString(),
+        UpdatedAt: qDoc.UpdatedAt.toISOString(),
+        Items: qDoc.Items.map(i => ({
+            ...i,
+            Id: i.ItemID,
+            Price: i.Price ? Number(i.Price) : 0,
+            Total: i.Total ? Number(i.Total) : 0,
+        }))
     };
 
-    const initialDepartments = dSnap.docs.map(d => ({
-        DepartmentID: d.id,
-        ...d.data(),
-        CreatedAt: d.data().CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: d.data().UpdatedAt?.toDate?.()?.toISOString() || null,
+    const initialDepartments = dSnap.map((d: any) => ({
+        ...d,
+        DepartmentID: d.DepartmentID,
+        CreatedAt: d.CreatedAt.toISOString(),
+        UpdatedAt: d.UpdatedAt?.toISOString(),
     }));
 
-    const initialServices = sSnap.docs.map(d => ({
-        ServiceID: d.id,
-        ...d.data(),
-        CreatedAt: d.data().CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: d.data().UpdatedAt?.toDate?.()?.toISOString() || null,
+    const initialServices = sSnap.map((s: any) => ({
+        ...s,
+        ServiceID: s.ServiceID,
+        Price: s.Price ? Number(s.Price) : 0,
+        CreatedAt: s.CreatedAt.toISOString(),
+        UpdatedAt: s.UpdatedAt?.toISOString(),
     }));
 
-    const initialGuarantors = gSnap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        CreatedAt: d.data().CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: d.data().UpdatedAt?.toDate?.()?.toISOString() || null,
+    const initialGuarantors = gSnap.map((g: any) => ({
+        ...g,
+        id: g.GuarantorID,
+        CreatedAt: g.CreatedAt.toISOString(),
+        UpdatedAt: g.UpdatedAt?.toISOString(),
     }));
 
     return (
         <EditQuotationClient
-            initialQuotation={quotation}
-            initialDepartments={initialDepartments}
-            initialServices={initialServices}
-            initialGuarantors={initialGuarantors}
+            initialQuotation={quotation as any}
+            initialDepartments={initialDepartments as any}
+            initialServices={initialServices as any}
+            initialGuarantors={initialGuarantors as any}
             id={params.id}
         />
     );

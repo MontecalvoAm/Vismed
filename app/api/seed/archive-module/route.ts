@@ -5,41 +5,62 @@
 // ============================================================
 
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
-import * as admin from 'firebase-admin';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
     try {
         // 1. Add Archive module to M_Module
-        await adminDb.collection('M_Module').doc('archive').set({
-            ModuleID: 'archive',
-            ModuleName: 'Archive',
-            Label: 'Archive',
-            Path: '/archive',
-            Icon: 'Archive',
-            SortOrder: 99,
-            IsActive: true,
-            CreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-
-        // 2. Get ALL roles (not just Admin) to ensure every role gets Archive permissions
-        const rolesSnap = await adminDb.collection('M_Role').get();
-
-        const seededRoles: string[] = [];
-        for (const roleDoc of rolesSnap.docs) {
-            const roleId = roleDoc.id;
-            const roleName = roleDoc.data().RoleName ?? roleId;
-            await adminDb.collection('MT_RolePermission').doc(`${roleId}_archive`).set({
-                RoleID: roleId,
+        await prisma.m_Module.upsert({
+            where: { ModuleID: 'archive' },
+            create: {
                 ModuleID: 'archive',
                 ModuleName: 'Archive',
-                CanView: true,
-                CanAdd: false,
-                CanEdit: true,
-                CanDelete: true,
-                UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
-            seededRoles.push(roleName);
+                Label: 'Archive',
+                Path: '/archive',
+                Icon: 'Archive',
+                SortOrder: 99,
+                IsActive: true,
+            },
+            update: {
+                ModuleName: 'Archive',
+                Label: 'Archive',
+                Path: '/archive',
+                Icon: 'Archive',
+                SortOrder: 99,
+                IsActive: true,
+            }
+        });
+
+        // 2. Get ALL roles
+        const roles = await prisma.m_Role.findMany({
+            where: { IsDeleted: false }
+        });
+
+        const seededRoles: string[] = [];
+        for (const role of roles) {
+            await prisma.mT_RolePermission.upsert({
+                where: {
+                    RoleID_ModuleName: {
+                        RoleID: role.RoleID,
+                        ModuleName: 'Archive'
+                    }
+                },
+                create: {
+                    RoleID: role.RoleID,
+                    ModuleName: 'Archive',
+                    CanView: true,
+                    CanAdd: false,
+                    CanEdit: true,
+                    CanDelete: true,
+                },
+                update: {
+                    CanView: true,
+                    CanAdd: false,
+                    CanEdit: true,
+                    CanDelete: true,
+                }
+            });
+            seededRoles.push(role.RoleName);
         }
 
         return NextResponse.json({

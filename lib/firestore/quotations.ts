@@ -1,16 +1,7 @@
 // ============================================================
-//  VisayasMed — Firestore: Quotations (T_Quotation)
-//  Collection renamed from 'quotations' → 'T_Quotation'
-//  All fields now strictly PascalCase per DB schema rules
+//  VisayasMed — Client-side Adapter: Quotations
+//  Calls local API instead of direct Firebase/Prisma
 // ============================================================
-
-import {
-    collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-    serverTimestamp, query, orderBy, where, Timestamp
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
-// ── Interfaces ────────────────────────────────────────────────
 
 export interface QuotationItem {
     Id: string;
@@ -23,16 +14,16 @@ export interface QuotationItem {
 }
 
 export interface QuotationRecord {
-    id?: string;          // Firestore document ID (runtime only)
+    id?: string;
     DocumentNo?: string;
-    CustomerName?: string; // Legacy support (do not remove)
-    CustomerFirstName: string;
+    CustomerName?: string;
+    CustomerFirstName?: string;
     CustomerMiddleName?: string;
-    CustomerLastName: string;
+    CustomerLastName?: string;
     CustomerDob?: string;
     CustomerGender?: string;
-    CustomerEmail: string;
-    CustomerPhone: string;
+    CustomerEmail?: string;
+    CustomerPhone?: string;
     CustomerAddress?: string;
     CustomerNotes?: string;
     HospitalName?: string;
@@ -51,11 +42,6 @@ export interface QuotationRecord {
     UpdatedAt?: any;
 }
 
-// ── Collection constant ───────────────────────────────────────
-
-const COL = 'T_Quotation';
-
-// ── Helper: compute total and used quantity ───────────
 export function computeTotalQuantity(items: QuotationItem[]): number {
     return items.reduce((sum, i) => sum + (i.Quantity || 0), 0);
 }
@@ -64,93 +50,94 @@ export function computeUsedQuantity(items: QuotationItem[]): number {
     return items.reduce((sum, i) => sum + (i.Used || 0), 0);
 }
 
-// ── Timestamp helper ──────────────────────────────────────────
-function mapTimestamps(data: any, id: string): QuotationRecord {
-    return {
-        id,
-        ...data,
-        CreatedAt: data.CreatedAt instanceof Timestamp
-            ? data.CreatedAt.toDate().toISOString()
-            : data.CreatedAt ?? null,
-        UpdatedAt: data.UpdatedAt instanceof Timestamp
-            ? data.UpdatedAt.toDate().toISOString()
-            : data.UpdatedAt ?? null,
-    } as QuotationRecord;
-}
-
-// ── CRUD functions ────────────────────────────────────────────
-
-export async function addQuotation(
-    data: Omit<QuotationRecord, 'id' | 'CreatedAt' | 'UpdatedAt'>
-): Promise<string> {
-    const newDocRef = doc(collection(db, COL));
-    await setDoc(newDocRef, {
-        ...data,
-        IsDeleted: false,
-        CreatedAt: serverTimestamp(),
-        UpdatedAt: serverTimestamp(),
-    });
-    return newDocRef.id;
-}
-
 export async function getQuotations(): Promise<QuotationRecord[]> {
-    const q = query(collection(db, COL), orderBy('CreatedAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs
-        .map((d) => mapTimestamps(d.data(), d.id))
-        .filter((q) => q.IsDeleted !== true);
-}
-
-export async function getArchivedQuotations(): Promise<QuotationRecord[]> {
-    const snap = await getDocs(collection(db, COL));
-    return snap.docs
-        .map((d) => mapTimestamps(d.data(), d.id))
-        .filter((q) => q.IsDeleted === true)
-        .sort((a, b) => {
-            if (!a.CreatedAt) return 1;
-            if (!b.CreatedAt) return -1;
-            return new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime();
-        });
-}
-
-export async function getQuotationsByGuarantor(guarantorId: string): Promise<QuotationRecord[]> {
-    const q = query(collection(db, COL), where('GuarantorId', '==', guarantorId), orderBy('CreatedAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs
-        .map((d) => mapTimestamps(d.data(), d.id))
-        .filter((q) => q.IsDeleted !== true);
+    const res = await fetch('/api/quotations');
+    if (!res.ok) throw new Error('Failed to fetch quotations');
+    
+    const data = await res.json();
+    return (data.quotations || []).map((q: any) => ({
+        ...q,
+        id: q.QuotationID,
+        Items: (q.Items || []).map((i: any) => ({
+            ...i,
+            Id: i.ItemID,
+        }))
+    }));
 }
 
 export async function getQuotationById(id: string): Promise<QuotationRecord | null> {
-    const snap = await getDoc(doc(db, COL, id));
-    if (!snap.exists()) return null;
-    return mapTimestamps(snap.data(), snap.id);
+    const res = await fetch(`/api/quotations/${id}`);
+    if (!res.ok) return null;
+    
+    const data = await res.json();
+    if (!data.success) return null;
+    
+    const q = data.quotation;
+    return {
+        ...q,
+        id: q.QuotationID,
+        Items: (q.Items || []).map((i: any) => ({
+            ...i,
+            Id: i.ItemID,
+        }))
+    };
+}
+
+export async function getQuotationsByGuarantor(guarantorId: string): Promise<QuotationRecord[]> {
+    const res = await fetch(`/api/quotations?guarantorId=${guarantorId}`);
+    if (!res.ok) throw new Error('Failed to fetch quotations by guarantor');
+    
+    const data = await res.json();
+    return (data.quotations || []).map((q: any) => ({
+        ...q,
+        id: q.QuotationID,
+        Items: (q.Items || []).map((i: any) => ({
+            ...i,
+            Id: i.ItemID,
+        }))
+    }));
 }
 
 export async function updateQuotationStatus(
     id: string,
-    Status: QuotationRecord['Status']
+    Status: string
 ): Promise<void> {
-    await updateDoc(doc(db, COL, id), {
-        Status,
-        UpdatedAt: serverTimestamp(),
+    const res = await fetch(`/api/quotations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status })
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update quotation status');
+    }
 }
 
 export async function updateQuotation(
     id: string,
-    data: Partial<Omit<QuotationRecord, 'id' | 'CreatedAt' | 'UpdatedAt'>>
+    payload: any
 ): Promise<void> {
-    await updateDoc(doc(db, COL, id), {
-        ...data,
-        UpdatedAt: serverTimestamp(),
+    const res = await fetch(`/api/quotations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update quotation');
+    }
 }
 
-// Soft-delete: set IsDeleted = true
 export async function deleteQuotation(id: string): Promise<void> {
-    await updateDoc(doc(db, COL, id), {
-        IsDeleted: true,
-        UpdatedAt: serverTimestamp(),
+    const res = await fetch(`/api/quotations/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
     });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to delete quotation');
+    }
 }

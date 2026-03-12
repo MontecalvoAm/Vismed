@@ -21,3 +21,7 @@ export const CACHE_TTL_MS = 60_000; // 60 seconds
 export function invalidatePermCache(userId: string): void {
     permCache.delete(userId);
 }
+
+export function clearAllPermCaches(): void {
+    permCache.clear();
+}

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
 import { invalidatePermCache } from '@/lib/permCache';
-import * as admin from 'firebase-admin';
 import bcrypt from 'bcryptjs';
 
-
-const COL = 'M_User';
 const MODULE_NAME = 'Users';
 
 const isStrongPassword = (password: string) => {
@@ -14,8 +11,38 @@ const isStrongPassword = (password: string) => {
     return passwordRegex.test(password);
 };
 
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanView');
+    if (error) return error;
+
+    try {
+        const resolvedParams = await params;
+        const user = await prisma.m_User.findUnique({
+            where: { UserID: resolvedParams.id },
+            select: {
+                UserID: true,
+                Email: true,
+                FirstName: true,
+                LastName: true,
+                RoleID: true,
+                IsActive: true,
+                CreatedAt: true,
+                UpdatedAt: true,
+            }
+        });
+
+        if (!user) {
+            return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true, user });
+    } catch (e: any) {
+        return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
     if (error) return error;
 
     try {
@@ -28,14 +55,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             FirstName,
             LastName,
             RoleID,
-            IsActive,
-            UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            IsActive: IsActive !== undefined ? Boolean(IsActive) : undefined,
         };
-
-        const firebaseUpdateData: any = {};
-        if (Email) firebaseUpdateData.email = Email;
-        if (FirstName || LastName) firebaseUpdateData.displayName = `${FirstName || ''} ${LastName || ''}`.trim();
-        if (IsActive !== undefined) firebaseUpdateData.disabled = !IsActive;
 
         if (Password && Password.trim() !== '') {
             if (!isStrongPassword(Password)) {
@@ -43,30 +64,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             }
             const salt = await bcrypt.genSalt(10);
             updateData.Password = await bcrypt.hash(Password, salt);
-            firebaseUpdateData.password = Password;
-        } else {
-            // Ensure we don't accidentally overwrite password with empty
-            delete updateData.Password;
         }
 
         // remove undefined values
         Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
-        // 1. Update Firebase Auth (if there's anything to update)
-        if (Object.keys(firebaseUpdateData).length > 0) {
-            try {
-                await adminAuth.updateUser(resolvedParams.id, firebaseUpdateData);
-            } catch (authError: any) {
-                // If it's a "user not found" error, it means the user was manually created in Firestore
-                // before Firebase Auth integration. We might want to handle this gracefully or ignore.
-                console.error(`Failed to update Firebase Auth user: ${authError.message}`);
-            }
-        }
+        await prisma.m_User.update({
+            where: { UserID: resolvedParams.id },
+            data: updateData
+        });
 
-        // 2. Update Firestore
-        await adminDb.collection(COL).doc(resolvedParams.id).update(updateData);
-
-        // 3. Invalidate permission cache so new role/status takes effect immediately
         invalidatePermCache(resolvedParams.id);
 
         return NextResponse.json({ success: true });
@@ -76,28 +83,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
     if (error) return error;
 
     try {
         const resolvedParams = await params;
 
-        // 1. Disable Firebase Auth account (soft-delete — do not permanently delete)
-        try {
-            await adminAuth.updateUser(resolvedParams.id, { disabled: true });
-        } catch (authError: any) {
-            console.error(`Failed to disable Firebase Auth user: ${authError.message}`);
-            // Proceed anyway to update Firestore
-        }
-
-        // 2. Soft-delete in Firestore: mark as deleted and inactive
-        await adminDb.collection(COL).doc(resolvedParams.id).update({
-            IsDeleted: true,
-            IsActive: false,
-            UpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        await prisma.m_User.update({
+            where: { UserID: resolvedParams.id },
+            data: {
+                IsDeleted: true,
+                IsActive: false,
+            },
         });
 
-        // 3. Evict cache so the deleted user can no longer use a cached permission set
         invalidatePermCache(resolvedParams.id);
 
         return NextResponse.json({ success: true });

@@ -1,7 +1,8 @@
 import GuarantorManager from '@/components/manage/GuarantorManager';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import { getServerUser } from '@/lib/getServerUser';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
+import AccessDenied from '@/components/AccessDenied';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,27 +12,35 @@ export default async function GuarantorsPage(props: {
     const searchParams = await props.searchParams;
     const serverUser = await getServerUser();
 
-    // Fix copy-paste bug: Guarantors module requires Guarantors permissions, not Departments.
+    // Permissions check
     if (!(serverUser as any)?.Permissions?.Guarantors?.CanView) {
-        return null;
+        return (
+            <SidebarLayout pageTitle="Guarantors Management">
+                <AccessDenied moduleName="Guarantors" />
+            </SidebarLayout>
+        );
     }
 
     const searchTerm = (searchParams.search as string) || '';
     const currentPage = parseInt((searchParams.page as string) || '1', 10);
     const rowsPerPage = parseInt((searchParams.limit as string) || '5', 10);
 
-    const guarantorsSnap = await adminDb.collection('T_Guarantor').get();
+    const guarantors = await (prisma as any).t_Guarantor.findMany({
+        where: { IsDeleted: false },
+        orderBy: { CreatedAt: 'desc' }
+    });
 
     // Parse Guarantors
-    const allGuarantors = guarantorsSnap.docs.map(d => {
-        const data = d.data() as any;
+    const allGuarantors = guarantors.map(g => {
         return {
-            id: d.id,
-            ...data,
-            CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
-            UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
+            ...g,
+            id: g.GuarantorID, // For client component compatibility
+            DiscountAmount: g.DiscountAmount ? Number(g.DiscountAmount) : null,
+            DiscountPercentage: g.DiscountPercentage ? Number(g.DiscountPercentage) : null,
+            CreatedAt: g.CreatedAt.toISOString(),
+            UpdatedAt: g.UpdatedAt.toISOString(),
         }
-    }).filter(d => d.IsDeleted !== true);
+    });
 
     // Filter
     let filteredGuarantors = allGuarantors;

@@ -1,12 +1,7 @@
 // ============================================================
-//  VisayasMed — Firestore: Roles (M_Role)
-//  Uses client Firestore SDK — safe to call from client components
+//  VisayasMed — Client-side Adapter: Roles
+//  Calls local API instead of direct Firebase
 // ============================================================
-
-import {
-    collection, getDocs, query, where, orderBy
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 export interface Role {
     RoleID: string;
@@ -21,47 +16,35 @@ export interface Role {
 /** Get only active roles (for user assignment dropdowns) */
 export async function getRoles(): Promise<Role[]> {
     try {
-        const q = query(
-            collection(db, 'M_Role'),
-            where('IsActive', '==', true),
-            orderBy('RoleName', 'asc')
-        );
-        const snap = await getDocs(q);
-        return snap.docs
-            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
-            .filter((r) => r.IsDeleted !== true);
+        const res = await fetch('/api/roles');
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data.roles || []).filter((r: Role) => r.IsActive && !r.IsDeleted);
     } catch {
-        const snap = await getDocs(
-            query(collection(db, 'M_Role'), where('IsActive', '==', true))
-        );
-        return snap.docs
-            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
-            .filter((r) => r.IsDeleted !== true);
+        return [];
     }
 }
 
-/** Get ALL active roles (for admin management table) */
+/** Get ALL non-deleted roles (for admin management table) */
 export async function getAllRoles(): Promise<Role[]> {
     try {
-        const snap = await getDocs(
-            query(collection(db, 'M_Role'), orderBy('RoleName', 'asc'))
-        );
-        return snap.docs
-            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
-            .filter((r) => r.IsDeleted !== true);
+        const res = await fetch('/api/roles');
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data.roles || []).filter((r: Role) => !r.IsDeleted);
     } catch {
-        const snap = await getDocs(collection(db, 'M_Role'));
-        return snap.docs
-            .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
-            .filter((r) => r.IsDeleted !== true);
+        return [];
     }
 }
 
 /** Get archived (soft-deleted) roles */
 export async function getArchivedRoles(): Promise<Role[]> {
-    const snap = await getDocs(collection(db, 'M_Role'));
-    return snap.docs
-        .map((d) => ({ RoleID: d.id, ...d.data() } as Role))
-        .filter((r) => r.IsDeleted === true)
-        .sort((a, b) => a.RoleName.localeCompare(b.RoleName));
+    try {
+        const res = await fetch('/api/archive?tab=roles');
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.records || [];
+    } catch {
+        return [];
+    }
 }

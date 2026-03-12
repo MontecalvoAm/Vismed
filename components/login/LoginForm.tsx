@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginWithFirebase } from '@/lib/auth';
+import { loginUser } from '@/lib/auth';
 import { User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -41,21 +41,11 @@ export default function LoginForm() {
         setLoading(true);
 
         try {
-            await loginWithFirebase(email, password, rememberMe);
+            await loginUser(email, password, rememberMe);
             await refreshUser();
             router.push('/quotation');
         } catch (err: any) {
-            // Map Firebase error codes to user-friendly messages
-            const code = err?.code ?? '';
-            if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-                setError('Invalid email or password. Please try again.');
-            } else if (code === 'auth/too-many-requests') {
-                setError('Too many failed attempts. Please try again later.');
-            } else if (code === 'auth/user-disabled') {
-                setError('This account has been disabled. Contact your administrator.');
-            } else {
-                setError(err?.message ?? 'An unexpected error occurred.');
-            }
+            setError(err?.message ?? 'Invalid email or password. Please try again.');
         } finally {
             setLoading(false);
         }

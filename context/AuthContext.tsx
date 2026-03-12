@@ -4,14 +4,10 @@
 //  VisayasMed — Auth Context
 //  Provides: user, roleName, permissions (resolved RBAC), loading
 //  Wraps the entire app — consumes /api/auth/me
-//  Includes automatic token refresh mechanism
 // ============================================================
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { logoutFirebase } from '@/lib/auth';
-import { auth } from '@/lib/firebase';
-import { onIdTokenChanged, type User as FirebaseUser } from 'firebase/auth';
-import type { ResolvedPermissions } from '@/lib/firestore/permissions';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { logoutUser } from '@/lib/auth';
 
 interface AuthUser {
     UserID: string;
@@ -20,7 +16,7 @@ interface AuthUser {
     LastName: string;
     RoleID: string;
     RoleName: string;
-    Permissions: ResolvedPermissions;
+    Permissions: any; // Keep generic or import if needed
 }
 
 interface AuthContextValue {
@@ -37,20 +33,11 @@ const AuthContext = createContext<AuthContextValue>({
     refreshUser: async () => { },
 });
 
-// Token refresh interval: check every 5 minutes
-const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
-// Refresh token 5 minutes before expiration
-const TOKEN_REFRESH_BUFFER = 5 * 60 * 1000;
-
 export function AuthProvider({ children, initialUser }: { children: React.ReactNode, initialUser?: any }) {
     const [user, setUser] = useState<AuthUser | null>(initialUser || null);
-    // Optimistic: if we have initialUser, we are NOT loading.
     const [loading, setLoading] = useState<boolean>(!initialUser);
-    const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const fetchMe = async (retryCount = 0) => {
-        const MAX_RETRIES = 1;
-
+    const fetchMe = useCallback(async () => {
         try {
             const res = await fetch('/api/auth/me', {
                 headers: {
@@ -61,51 +48,27 @@ export function AuthProvider({ children, initialUser }: { children: React.ReactN
             });
             if (res.ok) {
                 const data = await res.json();
-                console.log("[AuthContext] LIVE Current Permissions loaded:", data.Permissions);
-
+                
                 if (data.sessionInvalidated) {
                     console.warn('[AuthContext] Session invalidated from another device. Logging out...');
-                    await logoutFirebase();
+                    await logoutUser();
                     setUser(null);
                     window.location.href = '/login?reason=session_invalidated';
                     return;
                 }
 
-                // If token is expired, force refresh and retry once
-                if (data.tokenExpired && auth.currentUser && retryCount < MAX_RETRIES) {
-                    console.log('[AuthContext] Token expired, refreshing...');
-                    try {
-                        const idToken = await auth.currentUser.getIdToken(true);
-                        const refreshRes = await fetch('/api/auth/session', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ idToken, isLogin: false }),
-                        });
-
-                        if (refreshRes.status === 401) {
-                            console.warn('[AuthContext] Session invalidated during refresh. Logging out...');
-                            await logoutFirebase();
-                            setUser(null);
-                            window.location.href = '/login?reason=session_invalidated';
-                            return;
-                        }
-
-                        // Retry fetchMe after refresh
-                        return fetchMe(retryCount + 1);
-                    } catch (refreshErr) {
-                        console.error('[AuthContext] Failed to refresh expired token:', refreshErr);
-                        setUser(null);
-                        return;
-                    }
-                }
-
                 if (data.authenticated === false || data.error) {
                     setUser(null);
+                    setLoading(false);
+                    // Prevent infinite redirect loop if already on login page
+                    if (window.location.pathname !== '/login') {
+                        await logoutUser();
+                        window.location.href = '/login?reason=unauthorized';
+                    }
                 } else {
                     setUser(data);
                 }
             } else {
-                // Fail-secure: any error means not authenticated
                 setUser(null);
             }
         } catch {
@@ -113,115 +76,17 @@ export function AuthProvider({ children, initialUser }: { children: React.ReactN
         } finally {
             setLoading(false);
         }
-    };
-
-    // Refresh the session cookie with a new token
-    const refreshSession = useCallback(async (firebaseUser: FirebaseUser) => {
-        try {
-            const idToken = await firebaseUser.getIdToken(true); // Force refresh
-            const res = await fetch('/api/auth/session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken, isLogin: false }),
-            });
-
-            if (res.status === 401) {
-                console.warn('[AuthContext] Background session refresh invalidated. Logging out...');
-                await logoutFirebase();
-                setUser(null);
-                window.location.href = '/login?reason=session_invalidated';
-                return;
-            }
-
-            if (!res.ok) {
-                console.error('[AuthContext] Failed to refresh session');
-            }
-        } catch (error) {
-            console.error('[AuthContext] Token refresh error:', error);
-        }
     }, []);
 
-    // Check token expiration and refresh if needed
-    const checkAndRefreshToken = useCallback(async () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
-
-        try {
-            const idTokenResult = await currentUser.getIdTokenResult();
-            const expirationTime = new Date(idTokenResult.expirationTime).getTime();
-            const now = Date.now();
-            const timeUntilExpiry = expirationTime - now;
-
-            // Refresh if token expires within the buffer period
-            if (timeUntilExpiry < TOKEN_REFRESH_BUFFER) {
-                console.log('[AuthContext] Token expiring soon, refreshing...');
-                await refreshSession(currentUser);
-            }
-        } catch (error) {
-            console.error('[AuthContext] Token check error:', error);
-        }
-    }, [refreshSession]);
-
-    // Listen for Firebase auth state changes
+    // Initial fetch on mount if no initialUser
     useEffect(() => {
-        const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                // Get a fresh token and update the cookie BEFORE fetching user data
-                // This ensures the server has a valid token when /api/auth/me is called
-                try {
-                    const idToken = await firebaseUser.getIdToken();
-                    await fetch('/api/auth/session', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ idToken, isLogin: false }), // Ensure we don't wipe out session ID
-                    });
-                } catch (err) {
-                    console.error('[AuthContext] Failed to update session cookie:', err);
-                }
-
-                // Now fetch user data with the updated cookie
-                await fetchMe();
-            } else {
-                // User is signed out
-                setUser(null);
-                setLoading(false);
-            }
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    // Set up token refresh interval
-    useEffect(() => {
-        if (user) {
-            // Clear any existing interval
-            if (refreshIntervalRef.current) {
-                clearInterval(refreshIntervalRef.current);
-            }
-
-            // Check token every 5 minutes
-            refreshIntervalRef.current = setInterval(checkAndRefreshToken, TOKEN_CHECK_INTERVAL);
-
-            // Also check immediately
-            checkAndRefreshToken();
+        if (!initialUser) {
+            fetchMe();
         }
-
-        return () => {
-            if (refreshIntervalRef.current) {
-                clearInterval(refreshIntervalRef.current);
-                refreshIntervalRef.current = null;
-            }
-        };
-    }, [user, checkAndRefreshToken]);
+    }, [fetchMe, initialUser]);
 
     const logout = async () => {
-        // Clear refresh interval
-        if (refreshIntervalRef.current) {
-            clearInterval(refreshIntervalRef.current);
-            refreshIntervalRef.current = null;
-        }
-
-        await logoutFirebase();
+        await logoutUser();
         setUser(null);
         window.location.href = '/login';
     };

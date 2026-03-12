@@ -1,12 +1,13 @@
 // ============================================================
 //  VisayasMed — API: POST /api/auth/session
-//  Verifies Firebase ID token and sets Secure HttpOnly cookie
+//  Verifies MySQL credentials and sets Secure HttpOnly cookie
 //  Supports "Remember Me" for extended session duration
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
 
 // Session durations
 const SESSION_DURATION = {
@@ -16,7 +17,6 @@ const SESSION_DURATION = {
 
 export async function POST(req: NextRequest) {
     try {
-        // Rate limiting - 5 login attempts per 15 minutes
         const clientIp = getClientIp(req);
         const rateLimitResult = checkRateLimit(`login:${clientIp}`, RATE_LIMITS.LOGIN);
         if (!rateLimitResult.success) {
@@ -24,89 +24,97 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { idToken, rememberMe, isLogin } = body;
+        const { email, password, rememberMe, isLogin } = body;
 
-        if (!idToken || typeof idToken !== 'string') {
-            return NextResponse.json({ error: 'Missing or invalid token.' }, { status: 400 });
-        }
-
-        // Verify token with Firebase REST API (works without service account)
-        const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`;
-        const verifyRes = await fetch(verifyUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken }),
-        });
-
-        if (!verifyRes.ok) {
-            return NextResponse.json({ error: 'Invalid token.' }, { status: 401 });
-        }
-
-        const verifyData = await verifyRes.json();
-        if (!verifyData.users || verifyData.users.length === 0) {
-            return NextResponse.json({ error: 'User not found.' }, { status: 401 });
-        }
-
-        const uid = verifyData.users[0].localId;
-
-        // SINGLE SESSION LOGIC
-        let sessionId = req.cookies.get('vm_session_id')?.value;
-
+        // Validation for initial login
         if (isLogin) {
-            // It's a fresh login, generate a NEW session ID
-            sessionId = crypto.randomUUID();
-            await adminDb.collection('M_User').doc(uid).update({
-                CurrentSessionID: sessionId
+            if (!email || !password) {
+                return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
+            }
+
+            // Find user in MySQL
+            const user = await prisma.m_User.findUnique({
+                where: { Email: email },
+                include: { Role: true }
             });
-        } else {
-            // It's a token refresh (onAuthStateChanged / session renew).
-            // We must have a valid session id cookie that matches the database
-            if (!sessionId) {
-                // Return 401 to log the user out on the client side
-                return NextResponse.json({ error: 'Session invalidated.' }, { status: 401 });
+
+            if (!user || !user.IsActive) {
+                // Generic error for security
+                return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
             }
 
-            const userDoc = await adminDb.collection('M_User').doc(uid).get();
-            const currentDbSessionId = userDoc.data()?.CurrentSessionID;
-
-            if (currentDbSessionId !== sessionId) {
-                return NextResponse.json({ error: 'Session invalidated.' }, { status: 401 });
+            // Verify password
+            const isPasswordValid = await bcrypt.compare(password, user.Password);
+            if (!isPasswordValid) {
+                return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
             }
+
+            // SINGLE SESSION LOGIC
+            const sessionId = crypto.randomUUID();
+            await prisma.m_User.update({
+                where: { UserID: user.UserID },
+                data: { CurrentSessionID: sessionId }
+            });
+
+            // Audit Log
+            await prisma.t_AuditLog.create({
+                data: {
+                    UserID: user.UserID,
+                    Action: 'LOGIN',
+                    Target: 'AUTH',
+                    Details: `User logged in from ${clientIp}`,
+                    IPAddress: clientIp
+                }
+            });
+
+            const sessionDuration = rememberMe === true
+                ? SESSION_DURATION.REMEMBER_ME
+                : SESSION_DURATION.STANDARD;
+
+            const expiresAt = new Date(Date.now() + sessionDuration);
+            const response = NextResponse.json({
+                success: true,
+                expiresAt: expiresAt.toISOString(),
+                persistent: rememberMe === true
+            });
+
+            const cookieOptions: any = {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                path: '/',
+            };
+
+            if (rememberMe) {
+                cookieOptions.expires = expiresAt;
+            }
+
+            // Using UserID as token for now (can be swapped for JWT)
+            response.cookies.set('vm_token', user.UserID, cookieOptions);
+            response.cookies.set('vm_session_id', sessionId, cookieOptions);
+
+            return response;
+        } 
+        
+        // This part handles session renewal/check
+        const userId = req.cookies.get('vm_token')?.value;
+        const sessionId = req.cookies.get('vm_session_id')?.value;
+
+        if (!userId || !sessionId) {
+            return NextResponse.json({ error: 'Session invalidated.' }, { status: 401 });
         }
 
-        // Determine session duration based on "Remember Me"
-        const sessionDuration = rememberMe === true
-            ? SESSION_DURATION.REMEMBER_ME
-            : SESSION_DURATION.STANDARD;
-
-        const expiresAt = new Date(Date.now() + sessionDuration);
-
-        // Set Secure HttpOnly session cookie
-        const response = NextResponse.json({
-            success: true,
-            expiresAt: expiresAt.toISOString(),
-            persistent: rememberMe === true
+        const user = await prisma.m_User.findUnique({
+            where: { UserID: userId }
         });
 
-        const cookieOptions: any = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-        };
-
-        if (rememberMe) {
-            cookieOptions.expires = expiresAt;
+        if (!user || user.CurrentSessionID !== sessionId || !user.IsActive) {
+            return NextResponse.json({ error: 'Session invalidated.' }, { status: 401 });
         }
 
-        response.cookies.set('vm_token', idToken, cookieOptions);
-        if (sessionId) {
-            response.cookies.set('vm_session_id', sessionId, cookieOptions);
-        }
+        return NextResponse.json({ success: true });
 
-        return response;
     } catch (err) {
-        // Log error but don't expose details
         console.error('[Auth Session] Error:', err);
         return NextResponse.json({ error: 'Server error.' }, { status: 500 });
     }

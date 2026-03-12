@@ -1,17 +1,28 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AuditLogEntry, deleteAuditLog } from '@/lib/firestore/audit';
+import { deleteAuditLogAction, bulkDeleteAuditLogsAction } from '@/app/actions/auditActions';
 import { useConfirm } from '@/context/ConfirmContext';
 import { useAuth } from '@/context/AuthContext';
 import { Trash2, FileSearch, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft, Shield, User, Activity, Clock, Printer, Loader2 } from 'lucide-react';
-import { QuotationRecord } from '@/lib/firestore/quotations';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 import AuditLogsPrintModal from './AuditLogsPrintModal';
 
+interface AuditLogEntry {
+    id: string;
+    Action: string;
+    RecordID: string;
+    Description: string;
+    Details?: string;
+    UserID?: string;
+    IpAddress?: string;
+    CreatedAt?: string;
+    Metadata?: any;
+}
+
 interface AuditLogsTableProps {
-    data: (AuditLogEntry & { id: string })[];
-    quotations?: QuotationRecord[];
+    data: AuditLogEntry[];
+    quotations?: any[];
     isLoading: boolean;
     onRefresh?: () => void;
 }
@@ -109,9 +120,13 @@ export default function AuditLogsTable({ data, quotations = [], isLoading, onRef
         });
         if (isConfirmed) {
             try {
-                await deleteAuditLog(id);
-                setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Log deleted successfully.' });
-                if (onRefresh) onRefresh();
+                const res = await deleteAuditLogAction(id);
+                if (res.success) {
+                    setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Log deleted successfully.' });
+                    if (onRefresh) onRefresh();
+                } else {
+                    setFeedback({ isOpen: true, type: 'error', title: 'Error', message: res.error || 'Failed to delete log.' });
+                }
             } catch (err) {
                 setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete log.' });
             }
@@ -137,10 +152,14 @@ export default function AuditLogsTable({ data, quotations = [], isLoading, onRef
                     }
                 });
 
-                await Promise.all(logIdsToDelete.map(id => deleteAuditLog(id)));
-                setSelectedRows(new Set());
-                setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected logs deleted successfully.' });
-                if (onRefresh) onRefresh();
+                const res = await bulkDeleteAuditLogsAction(logIdsToDelete);
+                if (res.success) {
+                    setSelectedRows(new Set());
+                    setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected logs deleted successfully.' });
+                    if (onRefresh) onRefresh();
+                } else {
+                    setFeedback({ isOpen: true, type: 'error', title: 'Error', message: res.error || 'Failed to delete logs.' });
+                }
             } catch (err) {
                 setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete logs.' });
             }
@@ -343,7 +362,7 @@ export default function AuditLogsTable({ data, quotations = [], isLoading, onRef
     );
 }
 
-function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { group: any, activeQuotation: QuotationRecord | undefined, perms: any, handleDelete: (id: string) => void }) {
+function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { group: any, activeQuotation: any, perms: any, handleDelete: (id: string) => void }) {
     const { user } = useAuth();
     const preparedBy = user ? `${user.FirstName} ${user.LastName}` : 'Unknown';
     const [page, setPage] = React.useState(1);

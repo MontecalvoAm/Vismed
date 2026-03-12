@@ -1,5 +1,7 @@
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+// ============================================================
+//  VisayasMed — Client-side Adapter: Modules
+//  Calls local API instead of direct Firebase
+// ============================================================
 
 export interface AppModule {
     ModuleID: string;
@@ -13,28 +15,21 @@ export interface AppModule {
 
 export async function getActiveModules(): Promise<AppModule[]> {
     try {
-        const q = query(
-            collection(db, 'M_Module'),
-            where('IsActive', '==', true)
-        );
+        const res = await fetch('/api/modules');
+        if (!res.ok) throw new Error('Failed to fetch modules');
+        
+        const data = await res.json();
+        const modules = (data.modules || []).map((m: any) => ({
+            ModuleID: m.ModuleID,
+            ModuleName: m.ModuleName,
+            Label: m.Label,
+            Path: m.Path,
+            Icon: m.Icon,
+            SortOrder: m.SortOrder ?? 99,
+            IsActive: m.IsActive ?? true
+        } as AppModule));
 
-        const snap = await getDocs(q);
-
-        const modules = snap.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ModuleID: doc.id,
-                ModuleName: data.ModuleName,
-                Label: data.Label,
-                Path: data.Path,
-                Icon: data.Icon,
-                SortOrder: data.SortOrder ?? 99,
-                IsActive: data.IsActive ?? true
-            } as AppModule;
-        });
-
-        // Sort in memory as composite index for IsActive + SortOrder might not exist yet
-        return modules.sort((a, b) => a.SortOrder - b.SortOrder);
+        return modules;
     } catch (error) {
         console.error("Failed to fetch modules:", error);
         return [];

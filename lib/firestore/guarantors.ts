@@ -1,30 +1,18 @@
 // ============================================================
-//  VisayasMed — Firestore: Guarantors (T_Guarantor)
-//  All fields strictly PascalCase per DB schema rules
+//  VisayasMed — Client-side Adapter: Guarantors
+//  Calls local API instead of direct Firebase
 // ============================================================
 
-import {
-    collection, doc, getDoc, getDocs,
-    serverTimestamp, query, orderBy, Timestamp
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
-// ── Interfaces ────────────────────────────────────────────────
-
 export interface GuarantorRecord {
-    id?: string;          // Firestore document ID (runtime only)
+    id?: string;
     Name: string;
     Description?: string;
     IsDeleted?: boolean;
     CreatedAt?: any;
     UpdatedAt?: any;
+    SortOrder?: number;
+    IsActive?: boolean;
 }
-
-// ── Collection constant ───────────────────────────────────────
-
-const COL = 'T_Guarantor';
-
-// ── CRUD functions ────────────────────────────────────────────
 
 export async function addGuarantor(
     data: Omit<GuarantorRecord, 'id' | 'CreatedAt' | 'UpdatedAt'>
@@ -35,6 +23,8 @@ export async function addGuarantor(
         body: JSON.stringify({
             GuarantorName: data.Name,
             Description: data.Description || '',
+            SortOrder: data.SortOrder || 0,
+            IsActive: data.IsActive !== undefined ? data.IsActive : true,
         })
     });
 
@@ -48,43 +38,57 @@ export async function addGuarantor(
 }
 
 export async function getGuarantors(): Promise<GuarantorRecord[]> {
-    const q = query(collection(db, COL), orderBy('Name', 'asc'));
-    const snap = await getDocs(q);
-    return snap.docs
-        .map((d) => {
-            const data = d.data();
-            let formattedDate: string | null = null;
-            if (data.CreatedAt instanceof Timestamp) {
-                formattedDate = data.CreatedAt.toDate().toISOString();
-            }
-            return { id: d.id, ...data, CreatedAt: formattedDate } as GuarantorRecord;
-        })
-        .filter((g) => g.IsDeleted !== true);
+    const res = await fetch('/api/guarantors');
+    if (!res.ok) throw new Error('Failed to fetch guarantors');
+    
+    const data = await res.json();
+    return (data.guarantors || []).map((g: any) => ({
+        id: g.GuarantorID,
+        Name: g.Name,
+        Description: g.Description,
+        IsDeleted: g.IsDeleted,
+        CreatedAt: g.CreatedAt,
+        UpdatedAt: g.UpdatedAt,
+        SortOrder: g.SortOrder,
+        IsActive: g.IsActive,
+    }));
 }
 
 export async function getArchivedGuarantors(): Promise<GuarantorRecord[]> {
-    const snap = await getDocs(collection(db, COL));
-    return snap.docs
-        .map((d) => {
-            const data = d.data();
-            let formattedDate: string | null = null;
-            if (data.CreatedAt instanceof Timestamp) {
-                formattedDate = data.CreatedAt.toDate().toISOString();
-            }
-            return { id: d.id, ...data, CreatedAt: formattedDate } as GuarantorRecord;
-        })
-        .filter((g) => g.IsDeleted === true);
+    const res = await fetch('/api/archive?tab=guarantors');
+    if (!res.ok) throw new Error('Failed to fetch archived guarantors');
+    
+    const data = await res.json();
+    return (data.records || []).map((g: any) => ({
+        id: g.GuarantorID,
+        Name: g.Name,
+        Description: g.Description,
+        IsDeleted: g.IsDeleted,
+        CreatedAt: g.CreatedAt,
+        UpdatedAt: g.UpdatedAt,
+        SortOrder: g.SortOrder,
+        IsActive: g.IsActive,
+    }));
 }
 
 export async function getGuarantorById(id: string): Promise<GuarantorRecord | null> {
-    const snap = await getDoc(doc(db, COL, id));
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    let formattedDate: string | null = null;
-    if (data.CreatedAt instanceof Timestamp) {
-        formattedDate = data.CreatedAt.toDate().toISOString();
-    }
-    return { id: snap.id, ...data, CreatedAt: formattedDate } as GuarantorRecord;
+    const res = await fetch(`/api/guarantors/${id}`);
+    if (!res.ok) return null;
+    
+    const data = await res.json();
+    if (!data.success) return null;
+    
+    const g = data.guarantor;
+    return {
+        id: g.GuarantorID,
+        Name: g.Name,
+        Description: g.Description,
+        IsDeleted: g.IsDeleted,
+        CreatedAt: g.CreatedAt,
+        UpdatedAt: g.UpdatedAt,
+        SortOrder: g.SortOrder,
+        IsActive: g.IsActive,
+    };
 }
 
 export async function updateGuarantor(
@@ -94,6 +98,8 @@ export async function updateGuarantor(
     const payload: any = {};
     if (data.Name) payload.GuarantorName = data.Name;
     if (data.Description !== undefined) payload.Description = data.Description;
+    if (data.SortOrder !== undefined) payload.SortOrder = data.SortOrder;
+    if (data.IsActive !== undefined) payload.IsActive = data.IsActive;
 
     const res = await fetch(`/api/guarantors/${id}`, {
         method: 'PUT',
@@ -107,7 +113,6 @@ export async function updateGuarantor(
     }
 }
 
-// Soft-delete: set IsDeleted = true via API
 export async function deleteGuarantor(id: string): Promise<void> {
     const res = await fetch(`/api/guarantors/${id}`, {
         method: 'DELETE',

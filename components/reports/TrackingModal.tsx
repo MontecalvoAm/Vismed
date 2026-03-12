@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { QuotationRecord, updateQuotation, QuotationItem } from '@/lib/firestore/quotations';
-import { createAuditLog } from '@/lib/firestore/audit';
+import { createDetailedAuditLogAction } from '@/app/actions/auditActions';
 import { useConfirm } from '@/context/ConfirmContext';
 import { useAuth } from '@/context/AuthContext';
 import { X, Save, Clock, Package, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
@@ -95,19 +95,19 @@ export default function TrackingModal({ isOpen, onClose, quotation, initialItemI
             const changes = items.filter((item, i) => item.Used !== quotation.Items[i].Used)
                 .map(item => `${item.Name}: ${quotation.Items[items.indexOf(item)].Used || 0} -> ${item.Used}`);
             if (changes.length > 0) {
-                await createAuditLog({
+                await createDetailedAuditLogAction({
                     Action: 'UPDATE_TRACKING',
                     Module: 'Quotation',
                     RecordID: quotation.id,
                     Description: `Updated usage tracking on ${changes.length} item(s)`,
                     OldValues: { Items: quotation.Items.map(i => ({ Id: i.Id, Name: i.Name, Qty: i.Quantity, Used: i.Used || 0 })) },
-                    NewValues: { Items: items.map(i => ({ Id: i.Id, Name: i.Name, Qty: i.Quantity, Used: i.Used || 0 })) },
+                    NewValues: { Items: items.map((i: any) => ({ Id: i.Id, Name: i.Name, Qty: i.Quantity, Used: i.Used || 0 })) },
                     UserID: user?.UserID,
                     Metadata: {
                         PatientName: quotation.CustomerName,
                         GuarantorName: quotation.GuarantorName,
                         Status: updatedStatus,
-                        EditedBy: user ? `${user.FirstName} ${user.LastName}` : 'Unknown',
+                        EditedBy: user ? `${(user as any).FirstName} ${(user as any).LastName}` : 'Unknown',
                     }
                 });
             }

@@ -1,45 +1,63 @@
 import { getServerUser } from '@/lib/getServerUser';
 import QuotationClient from './QuotationClient';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
+import AccessDenied from '@/components/AccessDenied';
+import SidebarLayout from '@/components/layout/SidebarLayout';
 
 export const dynamic = 'force-dynamic';
 
 export default async function QuotationPage() {
-    await getServerUser();
+    const serverUser = await getServerUser();
+
+    if (!(serverUser as any)?.Permissions?.Quotation?.CanView) {
+        return (
+            <SidebarLayout pageTitle="Quotation">
+                <AccessDenied moduleName="Quotation" />
+            </SidebarLayout>
+        );
+    }
 
     // Fetch initial data on the server
-    const [dSnap, sSnap, gSnap] = await Promise.all([
-        adminDb.collection('M_Department').where('IsActive', '==', true).get(),
-        adminDb.collection('M_Service').where('IsActive', '==', true).get(),
-        adminDb.collection('T_Guarantor').where('IsDeleted', '!=', true).get(), // Using IsDeleted != true for active guarantors
+    const [departments, services, guarantors] = await Promise.all([
+        prisma.m_Department.findMany({
+            where: { IsActive: true, IsDeleted: false } as any,
+            orderBy: { SortOrder: 'asc' }
+        }),
+        prisma.m_Service.findMany({
+            where: { IsActive: true, IsDeleted: false } as any
+        }),
+        (prisma as any).t_Guarantor.findMany({
+            where: { IsDeleted: false } as any
+        }),
     ]);
 
-    const initialDepartments = dSnap.docs.map(d => ({
-        DepartmentID: d.id,
-        ...d.data(),
-        CreatedAt: d.data().CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: d.data().UpdatedAt?.toDate?.()?.toISOString() || null,
+    const initialDepartments = departments.map(d => ({
+        ...d,
+        id: d.DepartmentID, // For compatibility with client components expecting 'id'
+        CreatedAt: d.CreatedAt.toISOString(),
     }));
 
-    const initialServices = sSnap.docs.map(d => ({
-        ServiceID: d.id,
-        ...d.data(),
-        CreatedAt: d.data().CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: d.data().UpdatedAt?.toDate?.()?.toISOString() || null,
+    const initialServices = services.map(s => ({
+        ...s,
+        id: s.ServiceID,
+        CreatedAt: s.CreatedAt.toISOString(),
+        Price: Number(s.Price),
     }));
 
-    const initialGuarantors = gSnap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        CreatedAt: d.data().CreatedAt?.toDate?.()?.toISOString() || null,
-        UpdatedAt: d.data().UpdatedAt?.toDate?.()?.toISOString() || null,
+    const initialGuarantors = guarantors.map((g: any) => ({
+        ...g,
+        id: g.GuarantorID,
+        DiscountAmount: g.DiscountAmount ? Number(g.DiscountAmount) : null,
+        DiscountPercentage: g.DiscountPercentage ? Number(g.DiscountPercentage) : null,
+        CreatedAt: g.CreatedAt.toISOString(),
+        UpdatedAt: g.UpdatedAt.toISOString(),
     }));
 
     return (
         <QuotationClient
-            initialDepartments={initialDepartments}
-            initialServices={initialServices}
-            initialGuarantors={initialGuarantors}
+            initialDepartments={initialDepartments as any}
+            initialServices={initialServices as any}
+            initialGuarantors={initialGuarantors as any}
         />
     );
 }

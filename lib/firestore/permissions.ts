@@ -1,11 +1,7 @@
 // ============================================================
-//  VisayasMed — Hybrid RBAC Permission Resolver
-//  Merges MT_RolePermission defaults + MT_UserOverride records
-//  Backend skill: backend-visayasmed
+//  VisayasMed — Client-side Adapter: Permissions
+//  Role-Based Access Control (RBAC) resolved on backend
 // ============================================================
-
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 export type ModulePermissions = {
     CanView: boolean;
@@ -24,52 +20,15 @@ const DENY_ALL: ModulePermissions = {
 };
 
 /**
- * Resolves final permissions for a user by:
- * 1. Loading base role permissions from MT_RolePermission
- * 2. Loading user-specific overrides from MT_UserOverride
- * 3. Merging: MT_UserOverride takes priority over MT_RolePermission
- * Fail-secure: any missing module defaults to DENY_ALL
+ * DEPRECATED: Permissions are now resolved on the backend via /api/auth/me
+ * and provided through the AuthContext.
  */
 export async function resolvePermissions(
     UserID: string,
     RoleID: string
 ): Promise<ResolvedPermissions> {
-    const resolved: ResolvedPermissions = {};
-
-    // Step 1: Load base role permissions
-    const rolePermQ = query(
-        collection(db, 'MT_RolePermission'),
-        where('RoleID', '==', RoleID)
-    );
-    const rolePermSnap = await getDocs(rolePermQ);
-    rolePermSnap.docs.forEach((d) => {
-        const data = d.data();
-        resolved[data.ModuleName] = {
-            CanView: data.CanView ?? false,
-            CanAdd: data.CanAdd ?? false,
-            CanEdit: data.CanEdit ?? false,
-            CanDelete: data.CanDelete ?? false,
-        };
-    });
-
-    // Step 2: Load user-specific overrides and apply them
-    const overrideQ = query(
-        collection(db, 'MT_UserOverride'),
-        where('UserID', '==', UserID)
-    );
-    const overrideSnap = await getDocs(overrideQ);
-    overrideSnap.docs.forEach((d) => {
-        const data = d.data();
-        // Override takes full priority — replaces base role permission for that module
-        resolved[data.ModuleName] = {
-            CanView: data.CanView ?? false,
-            CanAdd: data.CanAdd ?? false,
-            CanEdit: data.CanEdit ?? false,
-            CanDelete: data.CanDelete ?? false,
-        };
-    });
-
-    return resolved;
+    console.warn('[Permissions] resolvePermissions is deprecated. Use AuthContext permissions instead.');
+    return {};
 }
 
 /**
@@ -79,5 +38,6 @@ export function getModulePerms(
     permissions: ResolvedPermissions,
     moduleName: string
 ): ModulePermissions {
+    if (!permissions) return DENY_ALL;
     return permissions[moduleName] ?? DENY_ALL;
 }

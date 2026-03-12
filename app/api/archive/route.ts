@@ -5,83 +5,67 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
-import * as admin from 'firebase-admin';
 
 const MODULE_NAME = 'Archive';
 
-function parseTimestamp(val: any): string | null {
-    if (!val) return null;
-    if (val instanceof admin.firestore.Timestamp) return val.toDate().toISOString();
-    if (typeof val === 'string') return val;
-    return null;
-}
-
-function mapDoc(d: admin.firestore.QueryDocumentSnapshot): Record<string, any> {
-    const data = d.data();
-    return {
-        id: d.id,
-        ...data,
-        CreatedAt: parseTimestamp(data.CreatedAt),
-        UpdatedAt: parseTimestamp(data.UpdatedAt),
-        DeletedAt: parseTimestamp(data.DeletedAt),
-    };
-}
-
 export async function GET(req: NextRequest) {
-    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanView');
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanView');
     if (error) return error;
 
     const tab = req.nextUrl.searchParams.get('tab') || 'guarantors';
 
     try {
-        let records: Record<string, any>[] = [];
+        let records: any[] = [];
 
         switch (tab) {
             case 'guarantors': {
-                const snap = await adminDb.collection('T_Guarantor')
-                    .where('IsDeleted', '==', true).get();
-                records = snap.docs.map(mapDoc);
+                const data = await prisma.t_Guarantor.findMany({
+                    where: { IsDeleted: true }
+                });
+                records = data.map(d => ({ ...d, id: d.GuarantorID, CreatedAt: d.CreatedAt.toISOString(), UpdatedAt: d.UpdatedAt.toISOString() }));
                 break;
             }
             case 'quotations': {
-                const snap = await adminDb.collection('T_Quotation')
-                    .where('IsDeleted', '==', true).get();
-                records = snap.docs.map(mapDoc);
+                const data = await prisma.t_Quotation.findMany({
+                    where: { IsDeleted: true }
+                });
+                records = data.map(d => ({ ...d, id: d.QuotationID, CreatedAt: d.CreatedAt.toISOString(), UpdatedAt: d.UpdatedAt.toISOString() }));
                 break;
             }
             case 'departments': {
-                const snap = await adminDb.collection('M_Department')
-                    .where('IsDeleted', '==', true).get();
-                records = snap.docs.map(mapDoc);
+                const data = await prisma.m_Department.findMany({
+                    where: { IsDeleted: true }
+                });
+                records = data.map(d => ({ ...d, id: d.DepartmentID, CreatedAt: d.CreatedAt.toISOString(), UpdatedAt: d.UpdatedAt.toISOString() }));
                 break;
             }
             case 'services': {
-                const snap = await adminDb.collection('M_Service')
-                    .where('IsDeleted', '==', true).get();
-                records = snap.docs.map(mapDoc);
+                const data = await prisma.m_Service.findMany({
+                    where: { IsDeleted: true }
+                });
+                records = data.map(d => ({ ...d, id: d.ServiceID, CreatedAt: d.CreatedAt.toISOString(), UpdatedAt: d.UpdatedAt.toISOString() }));
                 break;
             }
             case 'users': {
-                const snap = await adminDb.collection('M_User')
-                    .where('IsDeleted', '==', true).get();
-                records = snap.docs.map((d) => {
-                    const data = d.data();
-                    const { Password, ...safe } = data;
-                    return {
-                        id: d.id,
-                        ...safe,
-                        CreatedAt: parseTimestamp(data.CreatedAt),
-                        UpdatedAt: parseTimestamp(data.UpdatedAt),
-                    };
+                const data = await prisma.m_User.findMany({
+                    where: { IsDeleted: true }
                 });
+                records = data.map(({ Password, ...safe }) => ({
+                    ...safe,
+                    id: safe.UserID,
+                    CreatedAt: safe.CreatedAt.toISOString(),
+                    UpdatedAt: safe.UpdatedAt.toISOString()
+                }));
                 break;
             }
             case 'logs': {
-                const snap = await adminDb.collection('MT_AuditLog')
-                    .orderBy('CreatedAt', 'desc').limit(200).get();
-                records = snap.docs.map(mapDoc);
+                const data = await prisma.t_AuditLog.findMany({
+                    orderBy: { CreatedAt: 'desc' },
+                    take: 200
+                });
+                records = data.map(d => ({ ...d, id: d.LogID, CreatedAt: d.CreatedAt.toISOString() }));
                 break;
             }
             default:

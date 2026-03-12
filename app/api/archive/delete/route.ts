@@ -1,27 +1,18 @@
 // ============================================================
 //  VisayasMed — API: DELETE /api/archive/delete
-//  Permanently hard-deletes a record from Firestore
+//  Permanently hard-deletes a record from MySQL
 //  Body: { collection: string, id: string }
 //  This is the ONLY endpoint that performs hard deletion.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
 
 const MODULE_NAME = 'Archive';
 
-const ALLOWED_COLLECTIONS: Record<string, string> = {
-    guarantors: 'T_Guarantor',
-    quotations: 'T_Quotation',
-    departments: 'M_Department',
-    services: 'M_Service',
-    users: 'M_User',
-    roles: 'M_Role',
-};
-
 export async function DELETE(req: NextRequest) {
-    const { user, error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    const { error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
     if (error) return error;
 
     try {
@@ -32,23 +23,40 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'collection and id are required' }, { status: 400 });
         }
 
-        const firestoreCollection = ALLOWED_COLLECTIONS[collectionKey];
-        if (!firestoreCollection) {
-            return NextResponse.json({ success: false, error: 'Invalid collection' }, { status: 400 });
+        switch (collectionKey) {
+            case 'guarantors':
+                await prisma.t_Guarantor.delete({
+                    where: { GuarantorID: id }
+                });
+                break;
+            case 'quotations':
+                await prisma.t_Quotation.delete({
+                    where: { QuotationID: id }
+                });
+                break;
+            case 'departments':
+                await prisma.m_Department.delete({
+                    where: { DepartmentID: id }
+                });
+                break;
+            case 'services':
+                await prisma.m_Service.delete({
+                    where: { ServiceID: id }
+                });
+                break;
+            case 'users':
+                await prisma.m_User.delete({
+                    where: { UserID: id }
+                });
+                break;
+            case 'roles':
+                await prisma.m_Role.delete({
+                    where: { RoleID: id }
+                });
+                break;
+            default:
+                return NextResponse.json({ success: false, error: 'Invalid collection' }, { status: 400 });
         }
-
-        // For users: permanently delete from Firebase Auth as well
-        if (collectionKey === 'users') {
-            try {
-                await adminAuth.deleteUser(id);
-            } catch (authErr: any) {
-                console.error('Failed to permanently delete Firebase Auth user:', authErr.message);
-                // Continue to delete from Firestore even if Auth deletion fails
-            }
-        }
-
-        // Permanently delete from Firestore
-        await adminDb.collection(firestoreCollection).doc(id).delete();
 
         return NextResponse.json({ success: true });
     } catch (e: any) {

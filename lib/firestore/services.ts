@@ -1,13 +1,7 @@
 // ============================================================
-//  VisayasMed — Firestore: Services (M_Service)
-//  All fields: PascalCase per backend-visayasmed skill
+//  VisayasMed — Client-side Adapter: Services
+//  Calls local API instead of direct Firebase
 // ============================================================
-
-import {
-    collection, doc, getDocs, setDoc, updateDoc, serverTimestamp,
-    query, where,
-} from 'firebase/firestore';
-import { db, generateUUIDv7 } from '@/lib/firebase';
 
 export interface Service {
     ServiceID: string;
@@ -24,48 +18,39 @@ export interface Service {
     UpdatedBy?: string;
 }
 
-const COL = 'M_Service';
-
 export async function getAllServices(): Promise<Service[]> {
-    const q = query(collection(db, COL), where('IsActive', '==', true));
-    const snap = await getDocs(q);
-    return snap.docs
-        .map((d) => ({ ServiceID: d.id, ...d.data() } as Service))
-        .filter((s) => s.IsDeleted !== true);
+    const res = await fetch('/api/services');
+    if (!res.ok) throw new Error('Failed to fetch services');
+    
+    const data = await res.json();
+    return data.services || [];
 }
 
 export async function getArchivedServices(): Promise<Service[]> {
-    const snap = await getDocs(collection(db, COL));
-    return snap.docs
-        .map((d) => ({ ServiceID: d.id, ...d.data() } as Service))
-        .filter((s) => s.IsDeleted === true)
-        .sort((a, b) => a.ServiceName.localeCompare(b.ServiceName));
+    const res = await fetch('/api/archive?tab=services');
+    if (!res.ok) throw new Error('Failed to fetch archived services');
+    
+    const data = await res.json();
+    return data.records || [];
 }
 
 export async function getServicesByDept(DepartmentID: string): Promise<Service[]> {
-    const q = query(
-        collection(db, COL),
-        where('DepartmentID', '==', DepartmentID),
-        where('IsActive', '==', true)
-    );
-    const snap = await getDocs(q);
-    return snap.docs
-        .map((d) => ({ ServiceID: d.id, ...d.data() } as Service))
-        .filter((s) => s.IsDeleted !== true)
-        .sort((a, b) => a.ServiceName.localeCompare(b.ServiceName));
+    const res = await fetch(`/api/services?DepartmentID=${DepartmentID}`);
+    if (!res.ok) throw new Error('Failed to fetch services for department');
+    
+    const data = await res.json();
+    return data.services || [];
 }
 
 export async function addService(
     data: Omit<Service, 'ServiceID' | 'CreatedAt' | 'UpdatedAt'>,
     createdBy: string
 ): Promise<void> {
-    const id = generateUUIDv7();
     const res = await fetch('/api/services', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             ...data,
-            ServiceID: id,
             CreatedBy: createdBy
         })
     });
@@ -93,7 +78,6 @@ export async function updateService(
     }
 }
 
-// Soft-delete: set IsDeleted = true via API
 export async function deleteService(ServiceID: string, updatedBy: string): Promise<void> {
     const res = await fetch(`/api/services/${ServiceID}`, {
         method: 'DELETE',

@@ -1,65 +1,53 @@
 // ============================================================
 //  VisayasMed — API: GET /api/auth/me
-//  Performance-optimized: Parallel Firestore reads + 60s cache
+//  MySQL Optimized: Prisma queries for user & permissions
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
-import * as admin from 'firebase-admin';
+import { prisma } from '@/lib/prisma';
 import { permCache, CACHE_TTL_MS } from '@/lib/permCache';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-    const token = req.cookies.get('vm_token')?.value;
+    const UserID = req.cookies.get('vm_token')?.value;
     const sessionId = req.cookies.get('vm_session_id')?.value;
 
-    if (!token) {
+    if (!UserID) {
         return NextResponse.json({ authenticated: false, error: 'Unauthorized' }, { status: 200 });
     }
 
     try {
-        // 1. Verify Firebase ID token — always verified, never cached
-        let decodedToken;
-        try {
-            decodedToken = await admin.auth().verifyIdToken(token);
-        } catch (authErr: any) {
-            console.error('Token verification failed:', authErr.message);
-            const isExpired = authErr.code === 'auth/id-token-expired';
-            return NextResponse.json({
-                authenticated: false,
-                error: 'Session expired. Please log in again.',
-                tokenExpired: isExpired
-            }, { status: 200 });
-        }
-
-        const UserID = decodedToken.uid;
-
-        // 2. Return cached result if still fresh AND session IDs match
+        // 1. Return cached result if still fresh AND session IDs match
         const cached = permCache.get(UserID);
-        if (cached && Date.now() < cached.expiresAt && cached.sessionId === sessionId) {
-            return NextResponse.json(cached.data);
+        // FORCE BYPASS CACHE FOR NOW
+        // if (cached && Date.now() < cached.expiresAt && cached.sessionId === sessionId) {
+        //     return NextResponse.json(cached.data);
+        // }
+
+        // 2. Fetch User with Role, RolePermissions, and Overrides in one go
+        const user: any = await prisma.m_User.findUnique({
+            where: { UserID },
+            include: {
+                Role: {
+                    include: {
+                        Permissions: true
+                    }
+                },
+                Overrides: true
+            } as any
+        });
+
+        if (!user) {
+            return NextResponse.json({ authenticated: false, error: 'User not found' }, { status: 200 });
         }
 
-        // 3. Parallel fetch: M_User + MT_RolePermission + MT_UserOverride simultaneously
-        //    We don't know RoleID yet, so M_User must resolve first, then we fire the
-        //    permission queries in parallel with the role name lookup.
-        const userDoc = await adminDb.collection('M_User').doc(UserID).get();
-
-        if (!userDoc.exists) {
-            return NextResponse.json(
-                { error: 'Account not configured. Contact your administrator.' },
-                { status: 403 }
-            );
-        }
-
-        const userRecord = userDoc.data()!;
-        if (!userRecord.IsActive) {
+        if (!user.IsActive) {
             return NextResponse.json({ error: 'Account is inactive.' }, { status: 403 });
         }
 
         // SINGLE-USER LOGIN CHECK: Verify Session ID
-        if (userRecord.CurrentSessionID && userRecord.CurrentSessionID !== sessionId) {
+        if (user.CurrentSessionID && user.CurrentSessionID !== sessionId) {
             return NextResponse.json({
                 authenticated: false,
                 sessionInvalidated: true,
@@ -67,57 +55,63 @@ export async function GET(req: NextRequest) {
             }, { status: 200 });
         }
 
-        const RoleID: string = userRecord.RoleID;
+        // 3. Resolve Hybrid RBAC — base role permissions first
+        let resolved: Record<string, any> = {};
 
-        // 4. Run role name + role permissions + user overrides ALL in parallel
-        const [roleDoc, rolePermsSnap, overridesSnap] = await Promise.all([
-            adminDb.collection('M_Role').doc(RoleID).get(),
-            adminDb.collection('MT_RolePermission').where('RoleID', '==', RoleID).get(),
-            adminDb.collection('MT_UserOverride').where('UserID', '==', UserID).get(),
-        ]);
+        // SPECIAL ACCESS: Super Admin or specific email gets ALL permissions
+        if (user.Role?.RoleName === 'Super Admin' || user.Email === 'aljon.montecalvo08@gmail.com') {
+            const allModules = await prisma.m_Module.findMany({
+                where: { IsActive: true }
+            });
+            allModules.forEach(m => {
+                resolved[m.ModuleName] = {
+                    CanView: true,
+                    CanAdd: true,
+                    CanEdit: true,
+                    CanDelete: true,
+                };
+            });
+        } else {
+            if (user.Role?.Permissions) {
+                user.Role.Permissions.forEach((perm: any) => {
+                    resolved[perm.ModuleName] = {
+                        CanView: perm.CanView,
+                        CanAdd: perm.CanAdd,
+                        CanEdit: perm.CanEdit,
+                        CanDelete: perm.CanDelete,
+                    };
+                });
+            }
 
-        const roleName: string = roleDoc.exists ? roleDoc.data()?.RoleName : 'Unknown';
-
-        // 5. Resolve Hybrid RBAC — base role permissions first
-        const resolved: Record<string, any> = {};
-
-        rolePermsSnap.docs.forEach(d => {
-            const perm = d.data();
-            resolved[perm.ModuleName] = {
-                CanView: perm.CanView === true || String(perm.CanView).toLowerCase() === 'true',
-                CanAdd: perm.CanAdd === true || String(perm.CanAdd).toLowerCase() === 'true',
-                CanEdit: perm.CanEdit === true || String(perm.CanEdit).toLowerCase() === 'true',
-                CanDelete: perm.CanDelete === true || String(perm.CanDelete).toLowerCase() === 'true',
-            };
-        });
-
-        // 6. User-specific overrides take full priority
-        overridesSnap.docs.forEach(d => {
-            const ov = d.data();
-            resolved[ov.ModuleName] = {
-                CanView: ov.CanView === true || String(ov.CanView).toLowerCase() === 'true',
-                CanAdd: ov.CanAdd === true || String(ov.CanAdd).toLowerCase() === 'true',
-                CanEdit: ov.CanEdit === true || String(ov.CanEdit).toLowerCase() === 'true',
-                CanDelete: ov.CanDelete === true || String(ov.CanDelete).toLowerCase() === 'true',
-            };
-        });
+            // 4. User-specific overrides take priority over role permissions
+            if (user.Overrides) {
+                user.Overrides.forEach((ov: any) => {
+                    resolved[ov.ModuleName] = {
+                        CanView: ov.CanView,
+                        CanAdd: ov.CanAdd,
+                        CanEdit: ov.CanEdit,
+                        CanDelete: ov.CanDelete,
+                    };
+                });
+            }
+        }
 
         const responseData = {
             UserID,
-            Email: userRecord.Email,
-            FirstName: userRecord.FirstName,
-            LastName: userRecord.LastName,
-            RoleID,
-            RoleName: roleName,
+            Email: user.Email,
+            FirstName: user.FirstName,
+            LastName: user.LastName,
+            RoleID: user.RoleID,
+            RoleName: user.Role?.RoleName || 'Unknown',
             Permissions: resolved,
         };
 
-        // 7. Store in cache for 60 seconds (include sessionId for comparison)
+        // 5. Store in cache for 60 seconds
         permCache.set(UserID, { data: responseData, expiresAt: Date.now() + CACHE_TTL_MS, sessionId });
 
         return NextResponse.json(responseData);
     } catch (err: any) {
         console.error('[/api/auth/me] Unexpected error:', err?.message ?? err);
-        return NextResponse.json({ error: 'Server error: ' + (err?.message ?? 'unknown') }, { status: 500 });
+        return NextResponse.json({ error: 'Server error.' }, { status: 500 });
     }
 }

@@ -1,6 +1,8 @@
 import { getServerUser } from '@/lib/getServerUser';
 import ReportsPageView from './ReportsPageView';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
+import AccessDenied from '@/components/AccessDenied';
+import SidebarLayout from '@/components/layout/SidebarLayout';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +10,15 @@ export default async function ReportsPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
     const searchParams = await props.searchParams;
-    await getServerUser();
+    const serverUser = await getServerUser();
+
+    if (!(serverUser as any)?.Permissions?.Reports?.CanView) {
+        return (
+            <SidebarLayout pageTitle="Reports">
+                <AccessDenied moduleName="Reports" />
+            </SidebarLayout>
+        );
+    }
 
     // Filters from URL
     const searchTerm = (searchParams.search as string) || '';
@@ -19,42 +29,45 @@ export default async function ReportsPage(props: {
     const currentPage = parseInt((searchParams.page as string) || '1', 10);
     const rowsPerPage = parseInt((searchParams.limit as string) || '10', 10);
 
-    // Fetch all quotations to apply in-memory JS filtering & stat calculation 
-    // This replicates the behavior of the massive client payload but does it on the server!
-    let snap;
-    try {
-        snap = await adminDb.collection('T_Quotation').orderBy('CreatedAt', 'desc').get();
-    } catch {
-        snap = await adminDb.collection('T_Quotation').get();
-    }
-
-    const allQuotations = snap.docs
-        .map(d => {
-            const data = d.data();
-            return {
-                id: d.id,
-                ...data,
-                CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
-                UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
-            };
+    // Fetch all quotations and guarantors
+    const [quotations, guarantors] = await Promise.all([
+        (prisma as any).t_Quotation.findMany({
+            where: { IsDeleted: false },
+            include: { Items: true },
+            orderBy: { CreatedAt: 'desc' }
+        }),
+        (prisma as any).t_Guarantor.findMany({
+            where: { IsDeleted: false }
         })
-        .filter((q: any) => q.IsDeleted !== true);
+    ]);
 
-    const gSnap = await adminDb.collection('T_Guarantor').where('IsDeleted', '!=', true).get();
-    const initialGuarantors = gSnap.docs.map(d => {
-        const data = d.data() as any;
-        return {
-            id: d.id,
-            ...data,
-            CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
-            UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
-        }
-    });
+    const allQuotations = quotations.map((q: any) => ({
+        ...q,
+        id: q.QuotationID,
+        Subtotal: q.Subtotal ? Number(q.Subtotal) : 0,
+        Vat: q.Vat ? Number(q.Vat) : 0,
+        Total: q.Total ? Number(q.Total) : 0,
+        Items: (q.Items || []).map((item: any) => ({
+            ...item,
+            Price: item.Price ? Number(item.Price) : 0
+        })),
+        CreatedAt: q.CreatedAt.toISOString(),
+        UpdatedAt: q.UpdatedAt.toISOString(),
+    }));
+
+    const initialGuarantors = guarantors.map((g: any) => ({
+        ...g,
+        id: g.GuarantorID,
+        DiscountAmount: g.DiscountAmount ? Number(g.DiscountAmount) : null,
+        DiscountPercentage: g.DiscountPercentage ? Number(g.DiscountPercentage) : null,
+        CreatedAt: g.CreatedAt.toISOString(),
+        UpdatedAt: g.UpdatedAt.toISOString(),
+    }));
 
     const dynamicStatuses = Array.from(new Set(allQuotations.map(q => q.Status).filter(Boolean))) as string[];
     dynamicStatuses.sort();
 
-    // Apply JS filters exactly like the original client code
+    // Apply JS filters
     let filteredData = allQuotations;
 
     if (searchTerm) {
@@ -90,7 +103,7 @@ export default async function ReportsPage(props: {
         filteredData = filteredData.filter((r) => r.GuarantorName === guarantorFilter);
     }
 
-    // Compute Stats summary based on filtered data NOT paginated data
+    // Compute Stats summary
     const completeQuotationsCount = filteredData.filter((q) => q.Status === 'Completed').length;
     const incompleteQuotationsCount = filteredData.filter((q) => q.Status === 'Incomplete').length;
     const waitingQuotationsCount = filteredData.filter((q) => q.Status === 'Waiting for Approval').length;

@@ -1,8 +1,8 @@
 'use server';
 
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/getServerUser';
-import * as admin from 'firebase-admin';
+import { createAuditLog } from '@/app/actions/auditActions';
 
 export async function addGuarantorAction(data: { Name: string, Description?: string }) {
     try {
@@ -10,28 +10,22 @@ export async function addGuarantorAction(data: { Name: string, Description?: str
         if (!user) throw new Error("Unauthorized");
         if (!user.Permissions?.Setup?.CanEdit) throw new Error("Permission Denied");
 
-        const timestamp = admin.firestore.FieldValue.serverTimestamp();
-        const record = {
-            Name: data.Name,
-            Description: data.Description || "",
-            IsDeleted: false,
-            CreatedAt: timestamp,
-            UpdatedAt: timestamp,
-        };
-
-        const newDocRef = await adminDb.collection('T_Guarantor').add(record);
-
-        await adminDb.collection('MT_AuditLog').add({
-            Action: 'Created Guarantor',
-            Module: 'Setup',
-            RecordID: newDocRef.id,
-            Description: `Added Guarantor: ${data.Name}`,
-            UserName: `${user.FirstName} ${user.LastName}`,
-            Email: user.Email,
-            CreatedAt: timestamp,
+        const guarantor = await prisma.t_Guarantor.create({
+            data: {
+                Name: data.Name,
+                Description: data.Description || "",
+                IsDeleted: false,
+            }
         });
 
-        return { success: true, id: newDocRef.id, name: data.Name };
+        await createAuditLog({
+            Action: 'Created Guarantor',
+            Target: 'Setup',
+            Details: `Added Guarantor: ${data.Name} (ID: ${guarantor.GuarantorID})`,
+            UserID: user.UserID
+        });
+
+        return { success: true, id: guarantor.GuarantorID, name: data.Name };
     } catch (e: any) {
         console.error("Action error adding guarantor:", e);
         return { success: false, error: e.message };

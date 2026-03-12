@@ -1,28 +1,16 @@
-// ============================================================
-//  VisayasMed — Firestore: Audit Logs (MT_AuditLog)
-//  Logs tracking changes, entity updates, and security events
-// ============================================================
-
-import {
-    collection, doc, setDoc, getDocs, query, where, orderBy,
-    serverTimestamp, Timestamp
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { prisma } from '@/lib/prisma';
 
 export interface AuditLogEntry {
+    LogID?: string;
     Action: string;       // e.g. "UPDATE_TRACKING", "LOGIN_SUCCESS", "LOGIN_FAILED"
-    Module: string;       // e.g. "Quotation", "Auth", "Users"
-    RecordID: string;
-    Description: string;
-    OldValues?: unknown;
-    NewValues?: unknown;
+    Module?: string;       // e.g. "Quotation", "Auth", "Users"
+    Target?: string;      // maps to Target in Prisma
+    Details?: string;     // maps to Details in Prisma
     UserID?: string;
-    // Security event fields
     IpAddress?: string;
-    UserAgent?: string;
-    Severity?: 'info' | 'warning' | 'critical';
-    Metadata?: Record<string, unknown>;
-    CreatedAt?: unknown;
+    Metadata?: Record<string, unknown>; // We'll store this in Details as JSON if needed strings
+    CreatedAt?: Date | string;
+    RecordID?: string; // We'll use Target or LogID
 }
 
 // Security event types
@@ -38,136 +26,63 @@ export const SECURITY_EVENTS = {
     RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
 } as const;
 
-const COL = 'MT_AuditLog';
-
 /**
- * Create a general audit log entry
+ * Create a general audit log entry (Server Side)
  */
-export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
+export async function createAuditLog(entry: any): Promise<void> {
     try {
-        const newDocRef = doc(collection(db, COL));
-        await setDoc(newDocRef, {
-            ...entry,
-            CreatedAt: serverTimestamp(),
+        await prisma.t_AuditLog.create({
+            data: {
+                LogID: entry.LogID || undefined,
+                UserID: entry.UserID,
+                Action: entry.Action,
+                Target: entry.Target || entry.RecordID || entry.Module,
+                Details: entry.Details || JSON.stringify(entry.Metadata || {}),
+                IPAddress: entry.IpAddress,
+            },
         });
     } catch (err) {
         console.error('Failed to create audit log:', err);
-        // Fail silently for audit logs to not block the main transaction
     }
 }
 
 /**
- * Log a security event (for server-side use)
- * Includes IP address and user agent for security tracking
+ * Get audit logs (Server Side)
  */
-export async function logSecurityEvent(params: {
-    action: string;
-    userId?: string;
-    description: string;
-    ipAddress?: string;
-    userAgent?: string;
-    severity?: 'info' | 'warning' | 'critical';
-    metadata?: Record<string, unknown>;
-}): Promise<void> {
-    try {
-        const newDocRef = doc(collection(db, COL));
-        await setDoc(newDocRef, {
-            Action: params.action,
-            Module: 'Security',
-            RecordID: params.userId ?? 'anonymous',
-            Description: params.description,
-            UserID: params.userId,
-            IpAddress: params.ipAddress,
-            UserAgent: params.userAgent,
-            Severity: params.severity ?? 'info',
-            Metadata: params.metadata,
-            CreatedAt: serverTimestamp(),
-        });
-    } catch (err) {
-        console.error('Failed to log security event:', err);
-    }
-}
+export async function getUsageLogs(): Promise<any[]> {
+    const [logs, users] = await Promise.all([
+        prisma.t_AuditLog.findMany({
+            orderBy: { CreatedAt: 'desc' }
+        }),
+        prisma.m_User.findMany({
+            select: { UserID: true, FirstName: true, LastName: true }
+        })
+    ]);
 
-/**
- * Get audit logs for a specific record
- */
-export async function getAuditLogsForRecord(recordId: string): Promise<AuditLogEntry[]> {
-    const q = query(
-        collection(db, COL),
-        where('RecordID', '==', recordId),
-        orderBy('CreatedAt', 'desc')   // sorted server-side — requires composite index
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            CreatedAt: data.CreatedAt instanceof Timestamp ? data.CreatedAt.toDate().toISOString() : null,
-        } as AuditLogEntry;
-    });
-}
-
-/**
- * Get security logs (admin function)
- */
-export async function getSecurityLogs(options?: {
-    userId?: string;
-    action?: string;
-    limit?: number;
-}): Promise<AuditLogEntry[]> {
-    let q = query(
-        collection(db, COL),
-        where('Module', '==', 'Security'),
-        orderBy('CreatedAt', 'desc')   // sorted server-side — requires composite index
-    );
-
-    if (options?.userId) {
-        q = query(q, where('UserID', '==', options.userId));
-    }
-    if (options?.action) {
-        q = query(q, where('Action', '==', options.action));
-    }
-
-    const snap = await getDocs(q);
-    let logs = snap.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            CreatedAt: data.CreatedAt instanceof Timestamp ? data.CreatedAt.toDate().toISOString() : null,
-        } as AuditLogEntry;
+    const userMap: Record<string, string> = {};
+    users.forEach(u => {
+        userMap[u.UserID] = `${u.FirstName || ''} ${u.LastName || ''}`.trim();
     });
 
-    if (options?.limit && logs.length > options.limit) {
-        logs = logs.slice(0, options.limit);
-    }
-
-    return logs;
+    return logs.map(l => ({
+        id: l.LogID,
+        Action: l.Action,
+        RecordID: l.Target,
+        Description: l.Action,
+        Details: l.Details,
+        UserID: l.UserID,
+        UserName: l.UserID ? userMap[l.UserID] : undefined,
+        IpAddress: l.IPAddress,
+        CreatedAt: l.CreatedAt.toISOString(),
+        Metadata: l.Details?.startsWith('{') ? JSON.parse(l.Details) : { Details: l.Details }
+    }));
 }
 
 /**
- * Get usage logs (All CRUD Actions for Quotations)
- */
-export async function getUsageLogs(): Promise<(AuditLogEntry & { id: string })[]> {
-    const q = query(
-        collection(db, COL),
-        where('Module', '==', 'Quotation'),
-        orderBy('CreatedAt', 'desc')   // sorted server-side — requires composite index
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => {
-        const data = d.data();
-        return {
-            id: d.id,
-            ...data,
-            CreatedAt: data.CreatedAt instanceof Timestamp ? data.CreatedAt.toDate().toISOString() : null,
-        } as AuditLogEntry & { id: string };
-    });
-}
-
-/**
- * Delete an audit log
+ * Delete an audit log (Server Action recommended)
  */
 export async function deleteAuditLog(id: string): Promise<void> {
-    const { deleteDoc, doc } = await import('firebase/firestore');
-    await deleteDoc(doc(db, COL, id));
+    await prisma.t_AuditLog.delete({
+        where: { LogID: id }
+    });
 }

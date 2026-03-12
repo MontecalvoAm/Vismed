@@ -1,28 +1,10 @@
 import ArchiveClient from '@/components/archive/ArchiveClient';
 import SidebarLayout from '@/components/layout/SidebarLayout';
 import { getServerUser } from '@/lib/getServerUser';
-import { adminDb } from '@/lib/firebaseAdmin';
-import * as admin from 'firebase-admin';
+import { prisma } from '@/lib/prisma';
+import AccessDenied from '@/components/AccessDenied';
 
 export const dynamic = 'force-dynamic';
-
-function parseTimestamp(val: any): string | null {
-    if (!val) return null;
-    if (val instanceof admin.firestore.Timestamp) return val.toDate().toISOString();
-    if (typeof val === 'string') return val;
-    return null;
-}
-
-function mapDoc(d: admin.firestore.QueryDocumentSnapshot): Record<string, any> {
-    const data = d.data();
-    return {
-        id: d.id,
-        ...data,
-        CreatedAt: parseTimestamp(data.CreatedAt),
-        UpdatedAt: parseTimestamp(data.UpdatedAt),
-        DeletedAt: parseTimestamp(data.DeletedAt),
-    };
-}
 
 export default async function ArchivePage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -33,9 +15,7 @@ export default async function ArchivePage(props: {
     if (!(serverUser as any)?.Permissions?.Archive?.CanView) {
         return (
             <SidebarLayout pageTitle="Archive">
-                <div className="p-8 text-center text-red-500 font-medium">
-                    Access Denied: You do not have permission to view the Archive module.
-                </div>
+                <AccessDenied moduleName="Archive" />
             </SidebarLayout>
         );
     }
@@ -45,49 +25,59 @@ export default async function ArchivePage(props: {
     let records: Record<string, any>[] = [];
     switch (tab) {
         case 'guarantors': {
-            const snap = await adminDb.collection('T_Guarantor').where('IsDeleted', '==', true).get();
-            records = snap.docs.map(mapDoc);
+            const data = await prisma.t_Guarantor.findMany({
+                where: { IsDeleted: true },
+                orderBy: { Name: 'asc' }
+            });
+            records = data.map(r => ({ ...r, id: r.GuarantorID }));
             break;
         }
         case 'quotations': {
-            const snap = await adminDb.collection('T_Quotation').where('IsDeleted', '==', true).get();
-            records = snap.docs.map(mapDoc);
+            const data = await prisma.t_Quotation.findMany({
+                where: { IsDeleted: true },
+                orderBy: { CreatedAt: 'desc' },
+                include: { Items: true }
+            });
+            records = data.map(r => ({ ...r, id: r.QuotationID, TotalAmount: r.TotalAmount ? Number(r.TotalAmount) : 0, Discount: r.Discount ? Number(r.Discount) : 0 }));
             break;
         }
         case 'departments': {
-            const snap = await adminDb.collection('M_Department').where('IsDeleted', '==', true).get();
-            records = snap.docs.map(mapDoc);
+            const data = await prisma.m_Department.findMany({
+                where: { IsDeleted: true },
+                orderBy: { SortOrder: 'asc' }
+            });
+            records = data.map(r => ({ ...r, id: r.DepartmentID }));
             break;
         }
         case 'services': {
-            const snap = await adminDb.collection('M_Service').where('IsDeleted', '==', true).get();
-            records = snap.docs.map(mapDoc);
+            const data = await prisma.m_Service.findMany({
+                where: { IsDeleted: true },
+                orderBy: { ServiceName: 'asc' }
+            });
+            records = data.map(r => ({ ...r, id: r.ServiceID, Price: r.Price ? Number(r.Price) : 0 }));
             break;
         }
         case 'users': {
-            const snap = await adminDb.collection('M_User').where('IsDeleted', '==', true).get();
-            records = snap.docs.map((d) => {
-                const data = d.data();
-                const { Password, ...safe } = data;
-                return {
-                    id: d.id,
-                    ...safe,
-                    CreatedAt: parseTimestamp(data.CreatedAt),
-                    UpdatedAt: parseTimestamp(data.UpdatedAt),
-                };
+            const data = await prisma.m_User.findMany({
+                where: { IsDeleted: true },
+                orderBy: { LastName: 'asc' }
             });
+            records = data.map(({ Password, ...r }) => ({ ...r, id: r.UserID }));
             break;
         }
         case 'logs': {
-            const snap = await adminDb.collection('MT_AuditLog').orderBy('CreatedAt', 'desc').limit(200).get();
-            records = snap.docs.map(mapDoc);
+            const data = await prisma.t_AuditLog.findMany({
+                take: 200,
+                orderBy: { CreatedAt: 'desc' }
+            });
+            records = data.map(r => ({ ...r, id: r.LogID }));
             break;
         }
     }
 
     return (
         <SidebarLayout pageTitle="Archive">
-            <ArchiveClient initialTab={tab as any} serverRecords={records} perms={(serverUser as any)?.Permissions?.Archive} />
+            <ArchiveClient initialTab={tab as any} serverRecords={records as any} perms={(serverUser as any)?.Permissions?.Archive} />
         </SidebarLayout>
     );
 }

@@ -1,6 +1,8 @@
 import { getServerUser } from '@/lib/getServerUser';
 import UsersPageView from './UsersPageView';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { prisma } from '@/lib/prisma';
+import AccessDenied from '@/components/AccessDenied';
+import SidebarLayout from '@/components/layout/SidebarLayout';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +11,14 @@ export default async function UsersPage(props: {
 }) {
     const searchParams = await props.searchParams;
     const serverUser = await getServerUser();
+
+    if (!(serverUser as any)?.Permissions?.Users?.CanView) {
+        return (
+            <SidebarLayout pageTitle="Users Management">
+                <AccessDenied moduleName="Users" />
+            </SidebarLayout>
+        );
+    }
 
     // Parse Search Params
     const tab = (searchParams.tab as string) || 'users';
@@ -26,30 +36,30 @@ export default async function UsersPage(props: {
     const roleRowsPerPage = parseInt((searchParams.rlimit as string) || '10', 10);
 
     // Fetch Roles (always needed for the filter dropdown)
-    const rSnap = await adminDb.collection('M_Role').get();
-    const allRoles = rSnap.docs.map(d => {
-        const data = d.data();
-        return {
-            RoleID: d.id,
-            ...data,
-            CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
-            UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
-        };
-    }) as any[];
+    const roles = await prisma.m_Role.findMany({
+        where: { IsActive: true }
+    });
+
+    const allRoles = roles.map(r => ({
+        ...r,
+        id: r.RoleID,
+        CreatedAt: r.CreatedAt.toISOString(),
+        UpdatedAt: r.UpdatedAt.toISOString(),
+    }));
 
     // Fetch Users (if users tab)
     let initialUsers: any[] = [];
     if (tab === 'users' || tab === undefined) {
-        const uSnap = await adminDb.collection('M_User').get();
-        initialUsers = uSnap.docs.map(d => {
-            const data = d.data();
-            return {
-                UserID: d.id,
-                ...data,
-                CreatedAt: data.CreatedAt?.toDate?.()?.toISOString() || null,
-                UpdatedAt: data.UpdatedAt?.toDate?.()?.toISOString() || null,
-            };
-        }).filter(u => u.IsDeleted !== true);
+        const users = await prisma.m_User.findMany({
+            where: { IsDeleted: false }
+        });
+
+        initialUsers = users.map(u => ({
+            ...u,
+            id: u.UserID,
+            CreatedAt: u.CreatedAt.toISOString(),
+            UpdatedAt: u.UpdatedAt.toISOString(),
+        }));
     }
 
     // Filter Users in JS
@@ -102,7 +112,7 @@ export default async function UsersPage(props: {
             filteredRolesCount={filteredRoles.length}
             roleTotalPages={roleTotalPagesCalc}
 
-            allRoles={allRoles}
+            allRoles={allRoles as any}
             perms={(serverUser as any)?.Permissions?.Users}
         />
     );
