@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Departments';
 
@@ -35,7 +37,18 @@ export async function POST(req: NextRequest) {
                 Description: Description || '',
                 SortOrder: SortOrder ? Number(SortOrder) : 0,
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
+                CreatedBy: user?.UserID,
+                UpdatedBy: user?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'CREATE_DEPARTMENT',
+            Module: MODULE_NAME,
+            Target: newDept.DepartmentID,
+            Details: JSON.stringify({ DepartmentName, Description, SortOrder, IsActive }),
+            UserID: user?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         return NextResponse.json({ success: true, id: newDept.DepartmentID });

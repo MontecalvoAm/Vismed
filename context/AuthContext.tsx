@@ -39,7 +39,7 @@ export function AuthProvider({ children, initialUser }: { children: React.ReactN
 
     const fetchMe = useCallback(async () => {
         try {
-            const res = await fetch('/api/auth/me', {
+            const res = await fetch(`/api/auth/me?t=${Date.now()}`, {
                 headers: {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',

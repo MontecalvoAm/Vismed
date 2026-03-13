@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Guarantors';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
     if (error) return error;
 
     try {
@@ -22,7 +24,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                 DiscountAmount: DiscountAmount !== undefined ? Number(DiscountAmount) : undefined,
                 SortOrder: SortOrder !== undefined ? Number(SortOrder) : undefined,
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : undefined,
+                UpdatedBy: authUser?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'UPDATE_GUARANTOR',
+            Module: MODULE_NAME,
+            Target: resolvedParams.id,
+            Details: JSON.stringify({ GuarantorName, DiscountPercentage, DiscountAmount, Description, SortOrder, IsActive }),
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         return NextResponse.json({ success: true });
@@ -32,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
     if (error) return error;
 
     try {
@@ -44,7 +56,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             data: {
                 IsDeleted: true,
                 IsActive: false,
+                UpdatedBy: authUser?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'DELETE_GUARANTOR',
+            Module: MODULE_NAME,
+            Target: resolvedParams.id,
+            Details: 'Guarantor marked as deleted',
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         return NextResponse.json({ success: true });

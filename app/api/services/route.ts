@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Services';
 
@@ -21,7 +23,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanAdd');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanAdd');
     if (error) return error;
 
     try {
@@ -37,7 +39,18 @@ export async function POST(req: NextRequest) {
                 Unit: Unit || '',
                 Description: Description || '',
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
+                CreatedBy: authUser?.UserID,
+                UpdatedBy: authUser?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'CREATE_SERVICE',
+            Module: MODULE_NAME,
+            Target: newService.ServiceID,
+            Details: JSON.stringify({ ServiceName, DepartmentID, Price, Unit, Description, IsActive }),
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         return NextResponse.json({ success: true, id: newService.ServiceID });

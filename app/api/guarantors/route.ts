@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Guarantors';
 
@@ -21,7 +23,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanAdd');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanAdd');
     if (error) return error;
 
     try {
@@ -37,7 +39,18 @@ export async function POST(req: NextRequest) {
                 Description: Description || '',
                 SortOrder: SortOrder ? Number(SortOrder) : 0,
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
+                CreatedBy: authUser?.UserID,
+                UpdatedBy: authUser?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'CREATE_GUARANTOR',
+            Module: MODULE_NAME,
+            Target: newGuarantor.GuarantorID,
+            Details: JSON.stringify({ GuarantorName, DiscountPercentage, DiscountAmount, Description, SortOrder, IsActive }),
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         return NextResponse.json({ success: true, id: newGuarantor.GuarantorID });

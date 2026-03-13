@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
 import { clearAllPermCaches } from '@/lib/permCache';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Users';
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanEdit');
     if (error) return error;
     try {
         const { id } = await context.params;
@@ -37,7 +39,17 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
                 RoleName: RoleName.trim(),
                 Description: Description?.trim() ?? '',
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
+                UpdatedBy: authUser?.UserID,
             }
+        });
+
+        await createAuditLog({
+            Action: 'UPDATE_ROLE',
+            Module: 'Roles',
+            Target: id,
+            Details: JSON.stringify({ RoleName, Description, IsActive }),
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         clearAllPermCaches();
@@ -49,7 +61,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanDelete');
     if (error) return error;
     try {
         const { id } = await context.params;
@@ -60,7 +72,17 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
             data: {
                 IsDeleted: true,
                 IsActive: false,
+                UpdatedBy: authUser?.UserID,
             }
+        });
+
+        await createAuditLog({
+            Action: 'DELETE_ROLE',
+            Module: 'Roles',
+            Target: id,
+            Details: 'Role marked as deleted',
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         clearAllPermCaches();
