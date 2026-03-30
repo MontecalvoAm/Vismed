@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/getServerUser';
-
+import { createAuditLog } from '@/lib/firestore/audit';
 import crypto from 'crypto';
 
 export async function saveQuotationAction(data: any, isEditing: boolean = false, editId: string | null = null) {
@@ -26,6 +26,7 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
                 where: { QuotationID: editId },
                 data: {
                     ...quotationData,
+                    UpdatedBy: user.UserID,
                     UpdatedAt: now,
                 }
             });
@@ -47,15 +48,13 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
                  });
             }
 
-            // Create Audit Log
-            await (prisma as any).t_AuditLog.create({
-                data: {
-                    UserID: user.UserID,
-                    Action: 'Edited Quotation',
-                    Target: 'Quotation',
-                    Details: `Updated Quotation Document No: ${documentNoToSave}`,
-                    CreatedAt: now,
-                }
+            // Create Audit Log using unified helper
+            await createAuditLog({
+                Action: 'UPDATE_QUOTATION',
+                Module: 'Quotations',
+                Target: editId,
+                Details: `Updated Quotation Document No: ${documentNoToSave}`,
+                UserID: user.UserID,
             });
         } else {
             // Create New Quotation
@@ -66,6 +65,8 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
                     DocumentNo: documentNoToSave,
                     CustomerName: data.CustomerName || 'Unknown',
                     IsDeleted: false,
+                    CreatedBy: user.UserID,
+                    UpdatedBy: user.UserID,
                     CreatedAt: now,
                     UpdatedAt: now,
                     Items: Items && Items.length > 0 ? {
@@ -83,15 +84,13 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
             });
             resultId = newQuotation.QuotationID;
 
-            // Create Audit Log
-            await (prisma as any).t_AuditLog.create({
-                data: {
-                    UserID: user.UserID,
-                    Action: 'Created Quotation',
-                    Target: 'Quotation',
-                    Details: `Created Quotation Document No: ${documentNoToSave}`,
-                    CreatedAt: now,
-                }
+            // Create Audit Log using unified helper
+            await createAuditLog({
+                Action: 'CREATE_QUOTATION',
+                Module: 'Quotations',
+                Target: resultId,
+                Details: `New Quotation Created for ${data.CustomerName || 'Unknown'}: ${documentNoToSave}`,
+                UserID: user.UserID,
             });
         }
 

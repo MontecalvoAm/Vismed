@@ -1,4 +1,8 @@
+'use server';
+
 import { prisma } from '@/lib/prisma';
+import { SECURITY_EVENTS } from '@/lib/constants/audit';
+
 
 export interface AuditLogEntry {
     LogID?: string;
@@ -13,31 +17,33 @@ export interface AuditLogEntry {
     RecordID?: string; // We'll use Target or LogID
 }
 
-// Security event types
-export const SECURITY_EVENTS = {
-    LOGIN_SUCCESS: 'LOGIN_SUCCESS',
-    LOGIN_FAILED: 'LOGIN_FAILED',
-    LOGOUT: 'LOGOUT',
-    SESSION_EXPIRED: 'SESSION_EXPIRED',
-    PERMISSION_DENIED: 'PERMISSION_DENIED',
-    PASSWORD_CHANGE: 'PASSWORD_CHANGE',
-    ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
-    SUSPICIOUS_ACTIVITY: 'SUSPICIOUS_ACTIVITY',
-    RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
-} as const;
+
 
 /**
  * Create a general audit log entry (Server Side)
  */
 export async function createAuditLog(entry: any): Promise<void> {
     try {
-        await prisma.t_AuditLog.create({
+        // Store the entire entry as JSON in Details so we don't lose structured data
+        // while maintaining compatibility with the existing schema
+        const auditData = {
+            Action: entry.Action,
+            Module: entry.Module,
+            Description: entry.Description,
+            OldValues: entry.OldValues,
+            NewValues: entry.NewValues,
+            Metadata: entry.Metadata,
+            UserID: entry.UserID,
+            IpAddress: entry.IpAddress
+        };
+
+        await (prisma as any).t_AuditLog.create({
             data: {
                 LogID: entry.LogID || undefined,
                 UserID: entry.UserID,
                 Action: entry.Action,
                 Target: entry.Target || entry.RecordID || entry.Module,
-                Details: entry.Details || JSON.stringify(entry.Metadata || {}),
+                Details: JSON.stringify(auditData),
                 IPAddress: entry.IpAddress,
             },
         });
@@ -51,10 +57,10 @@ export async function createAuditLog(entry: any): Promise<void> {
  */
 export async function getUsageLogs(): Promise<any[]> {
     const [logs, users] = await Promise.all([
-        prisma.t_AuditLog.findMany({
+        (prisma as any).t_AuditLog.findMany({
             orderBy: { CreatedAt: 'desc' }
         }),
-        prisma.m_User.findMany({
+        (prisma as any).m_User.findMany({
             select: { UserID: true, FirstName: true, LastName: true }
         })
     ]);
@@ -64,25 +70,41 @@ export async function getUsageLogs(): Promise<any[]> {
         userMap[u.UserID] = `${u.FirstName || ''} ${u.LastName || ''}`.trim();
     });
 
-    return logs.map(l => ({
-        id: l.LogID,
-        Action: l.Action,
-        RecordID: l.Target,
-        Description: l.Action,
-        Details: l.Details,
-        UserID: l.UserID,
-        UserName: l.UserID ? userMap[l.UserID] : undefined,
-        IpAddress: l.IPAddress,
-        CreatedAt: l.CreatedAt.toISOString(),
-        Metadata: l.Details?.startsWith('{') ? JSON.parse(l.Details) : { Details: l.Details }
-    }));
+    return logs.map(l => {
+        let structuredDetails: any = {};
+        try {
+            if (l.Details?.startsWith('{')) {
+                structuredDetails = JSON.parse(l.Details);
+            } else {
+                structuredDetails = { Description: l.Details || l.Action };
+            }
+        } catch (e) {
+            structuredDetails = { Description: l.Details || l.Action };
+        }
+
+        return {
+            id: l.LogID,
+            Action: l.Action,
+            RecordID: l.Target,
+            Description: structuredDetails.Description || l.Action,
+            Details: l.Details,
+            UserID: l.UserID,
+            UserName: l.UserID ? userMap[l.UserID] : undefined,
+            IpAddress: l.IPAddress,
+            CreatedAt: l.CreatedAt.toISOString(),
+            Metadata: structuredDetails.Metadata || {},
+            OldValues: structuredDetails.OldValues,
+            NewValues: structuredDetails.NewValues,
+            Module: structuredDetails.Module
+        };
+    });
 }
 
 /**
  * Delete an audit log (Server Action recommended)
  */
 export async function deleteAuditLog(id: string): Promise<void> {
-    await prisma.t_AuditLog.delete({
+    await (prisma as any).t_AuditLog.delete({
         where: { LogID: id }
     });
 }

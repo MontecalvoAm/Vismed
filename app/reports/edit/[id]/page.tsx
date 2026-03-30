@@ -31,6 +31,7 @@ export default async function EditQuotationPage(props: { params: Promise<{ id: s
         TotalAmount: qDoc.TotalAmount ? Number(qDoc.TotalAmount) : 0,
         Subtotal: qDoc.Subtotal ? Number(qDoc.Subtotal) : 0,
         Vat: qDoc.Vat ? Number(qDoc.Vat) : 0,
+        Total: qDoc.Total ? Number(qDoc.Total) : 0,
         CreatedAt: qDoc.CreatedAt.toISOString(),
         UpdatedAt: qDoc.UpdatedAt.toISOString(),
         Items: qDoc.Items.map(i => ({
@@ -59,6 +60,8 @@ export default async function EditQuotationPage(props: { params: Promise<{ id: s
     const initialGuarantors = gSnap.map((g: any) => ({
         ...g,
         id: g.GuarantorID,
+        DiscountPercentage: g.DiscountPercentage ? Number(g.DiscountPercentage) : 0,
+        DiscountAmount: g.DiscountAmount ? Number(g.DiscountAmount) : 0,
         CreatedAt: g.CreatedAt.toISOString(),
         UpdatedAt: g.UpdatedAt?.toISOString(),
     }));

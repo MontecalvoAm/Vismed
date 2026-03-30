@@ -1,6 +1,9 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/getServerUser';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { requireAuth } from '@/lib/auth/serverAuth';
+import { getClientIp } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     try {
@@ -70,16 +73,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             }
         });
 
-        // Add Audit Log
+        // Add Audit Log using unified helper
         if (user) {
-            await (prisma as any).t_AuditLog.create({
-                data: {
-                    UserID: (user as any).UserID,
-                    Action: 'Updated Quotation Tracking',
-                    Target: 'Quotation',
-                    Details: `Updated Quotation ID: ${params.id}`,
-                    CreatedAt: new Date(),
-                }
+            await createAuditLog({
+                Action: 'UPDATE_QUOTATION',
+                Module: 'Quotations',
+                Target: params.id,
+                Details: JSON.stringify({ Status, Items }),
+                UserID: (user as any).UserID,
             });
         }
 

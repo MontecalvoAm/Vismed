@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
             // Audit Log
             await prisma.t_AuditLog.create({
                 data: {
+                    LogID: crypto.randomUUID(),
                     UserID: user.UserID,
                     Action: 'LOGIN',
                     Target: 'AUTH',

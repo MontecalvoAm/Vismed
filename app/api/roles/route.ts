@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/serverAuth';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
+
+const MODULE_NAME = 'Users';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +21,10 @@ export async function GET() {
 }
 
 // ── POST: create a new role ──────────────────────────────────
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanAdd');
+    if (error) return error;
+
     try {
         const { RoleName, Description, IsActive } = await req.json();
 
@@ -41,7 +49,18 @@ export async function POST(req: Request) {
                 RoleName: RoleName.trim(),
                 Description: Description?.trim() || '',
                 IsActive: IsActive !== undefined ? IsActive : true,
+                CreatedBy: authUser?.UserID,
+                UpdatedBy: authUser?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'CREATE_ROLE',
+            Module: 'Roles',
+            Target: newRole.RoleID,
+            Details: JSON.stringify({ RoleName, Description, IsActive }),
+            UserID: authUser?.UserID,
+            IpAddress: getClientIp(req),
         });
 
         return NextResponse.json({ success: true, RoleID: newRole.RoleID });

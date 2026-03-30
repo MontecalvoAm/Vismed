@@ -4,6 +4,10 @@ import bcrypt from 'bcryptjs';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
 import { sanitizeString, isValidEmail, validateRequired, sanitizeObject } from '@/lib/validation';
 import { errorResponse, successResponse, AppError, ValidationError } from '@/lib/errors';
+import { requireAuth } from '@/lib/auth/serverAuth';
+import { createAuditLog } from '@/lib/firestore/audit';
+
+const MODULE_NAME = 'Users';
 
 const isStrongPassword = (password: string) => {
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
@@ -12,6 +16,9 @@ const isStrongPassword = (password: string) => {
 
 export async function GET(req: NextRequest) {
     try {
+        const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanView');
+        if (error) return error;
+
         const clientIp = getClientIp(req);
         const rateLimitResult = checkRateLimit(`api:${clientIp}`, RATE_LIMITS.API);
         if (!rateLimitResult.success) {
@@ -41,6 +48,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanAdd');
+        if (error) return error;
+
         const clientIp = getClientIp(req);
         const rateLimitResult = checkRateLimit(`api:${clientIp}`, RATE_LIMITS.API);
         if (!rateLimitResult.success) {
@@ -93,7 +103,18 @@ export async function POST(req: NextRequest) {
                 RoleID: RoleID || undefined,
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
                 Password: hashedPassword,
+                CreatedBy: authUser?.UserID,
+                UpdatedBy: authUser?.UserID,
             },
+        });
+
+        await createAuditLog({
+            Action: 'CREATE_USER',
+            Module: MODULE_NAME,
+            Target: newUser.UserID,
+            Details: `New User Created: ${FirstName} ${LastName} (${Email})`,
+            UserID: authUser?.UserID,
+            IpAddress: clientIp,
         });
 
         return successResponse({ success: true, UserID: newUser.UserID }, 201);

@@ -89,20 +89,28 @@ export function checkRateLimit(
  * Handles various proxy configurations
  */
 export function getClientIp(request: Request): string {
+    let ip = '';
+    
     // Check for forwarded headers (when behind proxy/load balancer)
     const forwarded = request.headers.get('x-forwarded-for');
     if (forwarded) {
-        // Take first IP (original client)
-        return forwarded.split(',')[0].trim();
+        ip = forwarded.split(',')[0].trim();
+    } else {
+        const realIp = request.headers.get('x-real-ip');
+        if (realIp) {
+            ip = realIp;
+        } else {
+            // Fallback for development
+            ip = '127.0.0.1';
+        }
     }
 
-    const realIp = request.headers.get('x-real-ip');
-    if (realIp) {
-        return realIp;
+    // Normalize IPv6 and IPv4 localhost
+    if (ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1') {
+        return 'Localhost';
     }
-
-    // Fallback for development
-    return '127.0.0.1';
+    
+    return ip;
 }
 
 /**

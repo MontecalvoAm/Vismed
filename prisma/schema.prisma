@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,200 +7,211 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ── Master Tables (M_) ──────────────────────────────────────
+model m_Department {
+  ID             Int         @unique(map: "M_Department_ID_key") @default(autoincrement())
+  DepartmentID   String      @id @db.VarChar(36)
+  DepartmentName String      @db.VarChar(255)
+  Icon           String?     @db.VarChar(100)
+  Description    String?     @db.VarChar(255)
+  SortOrder      Int         @default(0)
+  IsActive       Boolean     @default(true)
+  IsDeleted      Boolean     @default(false)
+  CreatedAt      DateTime    @default(now())
+  UpdatedAt      DateTime
+  CreatedBy      String?     @db.VarChar(36)
+  UpdatedBy      String?     @db.VarChar(36)
+  Services       m_Service[]
 
-model M_User {
-  ID          Int       @default(autoincrement()) @unique
-  UserID      String    @id @default(uuid()) @db.VarChar(36)
-  Email       String    @unique @db.VarChar(255)
-  Password    String    @db.VarChar(255)
-  FirstName   String?   @db.VarChar(100)
-  LastName    String?   @db.VarChar(100)
-  RoleID      String?   @db.VarChar(36)
-  IsActive    Boolean   @default(true)
-  IsDeleted   Boolean   @default(false)
-  CurrentSessionID String? @db.VarChar(255) // Added for single session enforcement
-  CreatedAt   DateTime  @default(now())
-  UpdatedAt   DateTime  @updatedAt
-  Role        M_Role?   @relation(fields: [RoleID], references: [RoleID])
-  Overrides   MT_UserOverride[]
-
-  @@map("M_User")
+  @@map("m_department")
 }
 
-model M_Role {
-  ID          Int       @default(autoincrement()) @unique
-  RoleID      String    @id @default(uuid()) @db.VarChar(36)
-  RoleName    String    @unique @db.VarChar(100)
-  Description String?   @db.VarChar(255)
-  IsActive    Boolean   @default(true)
-  IsDeleted   Boolean   @default(false)
-  CreatedAt   DateTime  @default(now())
-  UpdatedAt   DateTime  @updatedAt
-  Users       M_User[]
-  Permissions MT_RolePermission[]
+model m_Module {
+  ID         Int      @unique(map: "M_Module_ID_key") @default(autoincrement())
+  ModuleID   String   @id @db.VarChar(36)
+  ModuleName String   @db.VarChar(100)
+  Label      String   @db.VarChar(100)
+  Path       String   @db.VarChar(255)
+  Icon       String?  @db.VarChar(100)
+  SortOrder  Int      @default(99)
+  IsActive   Boolean  @default(true)
+  IsDeleted  Boolean  @default(false)
+  CreatedAt  DateTime @default(now())
+  UpdatedAt  DateTime
+  CreatedBy  String?  @db.VarChar(36)
+  UpdatedBy  String?  @db.VarChar(36)
 
-  @@map("M_Role")
+  @@map("m_module")
 }
 
-model M_Module {
-  ID          Int       @default(autoincrement()) @unique
-  ModuleID    String    @id @db.VarChar(36)
-  ModuleName  String    @db.VarChar(100)
-  Label       String    @db.VarChar(100)
-  Path        String    @db.VarChar(255)
-  Icon        String?   @db.VarChar(100)
-  SortOrder   Int       @default(99)
-  IsActive    Boolean   @default(true)
-  IsDeleted   Boolean   @default(false)
-  CreatedAt   DateTime  @default(now())
-  UpdatedAt   DateTime  @updatedAt
+model m_Role {
+  ID                Int                 @unique(map: "M_Role_ID_key") @default(autoincrement())
+  RoleID            String              @id @db.VarChar(36)
+  RoleName          String              @unique(map: "M_Role_RoleName_key") @db.VarChar(100)
+  Description       String?             @db.VarChar(255)
+  IsActive          Boolean             @default(true)
+  UpdatedAt         DateTime
+  CreatedAt         DateTime            @default(now())
+  IsDeleted         Boolean             @default(false)
+  CreatedBy         String?             @db.VarChar(36)
+  UpdatedBy         String?             @db.VarChar(36)
+  Users             m_User[]
+  Permissions       mT_RolePermission[]
 
-  @@map("M_Module")
+  @@map("m_role")
 }
 
-model M_Department {
-  ID             Int       @default(autoincrement()) @unique
-  DepartmentID   String    @id @default(uuid()) @db.VarChar(36)
-  DepartmentName String    @db.VarChar(255)
-  Icon           String?   @db.VarChar(100)
-  Description    String?   @db.VarChar(255)
-  SortOrder      Int       @default(0)
-  IsActive       Boolean   @default(true)
-  IsDeleted      Boolean   @default(false)
-  CreatedAt      DateTime  @default(now())
-  UpdatedAt      DateTime  @updatedAt
-  Services       M_Service[]
+model m_Service {
+  ID           Int          @unique(map: "M_Service_ID_key") @default(autoincrement())
+  ServiceID    String       @id @db.VarChar(36)
+  DepartmentID String       @db.VarChar(36)
+  ServiceName  String       @db.VarChar(255)
+  Price        Decimal      @default(0.00) @db.Decimal(12, 2)
+  Unit         String?      @db.VarChar(100)
+  Description  String?      @db.VarChar(255)
+  IsActive     Boolean      @default(true)
+  IsDeleted    Boolean      @default(false)
+  CreatedAt    DateTime     @default(now())
+  UpdatedAt    DateTime
+  CreatedBy    String?      @db.VarChar(36)
+  UpdatedBy    String?      @db.VarChar(36)
+  Department   m_Department @relation(fields: [DepartmentID], references: [DepartmentID], map: "M_Service_DepartmentID_fkey")
 
-  @@map("M_Department")
+  @@index([DepartmentID], map: "M_Service_DepartmentID_fkey")
+  @@map("m_service")
 }
 
-model M_Service {
-  ID             Int       @default(autoincrement()) @unique
-  ServiceID      String    @id @default(uuid()) @db.VarChar(36)
-  DepartmentID   String    @db.VarChar(36)
-  ServiceName    String    @db.VarChar(255)
-  Price          Decimal   @db.Decimal(12, 2) @default(0.00)
-  Unit           String?   @db.VarChar(100)
-  Description    String?   @db.VarChar(255)
-  IsActive       Boolean   @default(true)
-  IsDeleted      Boolean   @default(false)
-  CreatedAt      DateTime  @default(now())
-  UpdatedAt      DateTime  @updatedAt
-  Department     M_Department @relation(fields: [DepartmentID], references: [DepartmentID])
+model m_User {
+  ID               Int               @unique(map: "M_User_ID_key") @default(autoincrement())
+  UserID           String            @id @db.VarChar(36)
+  Email            String            @unique(map: "M_User_Email_key") @db.VarChar(255)
+  Password         String            @db.VarChar(255)
+  FirstName        String?           @db.VarChar(100)
+  LastName         String?           @db.VarChar(100)
+  RoleID           String?           @db.VarChar(36)
+  IsActive         Boolean           @default(true)
+  IsDeleted        Boolean           @default(false)
+  CurrentSessionID String?           @db.VarChar(255)
+  CreatedAt        DateTime          @default(now())
+  UpdatedAt        DateTime
+  CreatedBy        String?           @db.VarChar(36)
+  UpdatedBy        String?           @db.VarChar(36)
+  Role             m_Role?           @relation(fields: [RoleID], references: [RoleID], map: "M_User_RoleID_fkey")
+  Overrides        mT_UserOverride[]
 
-  @@map("M_Service")
+  @@index([RoleID], map: "M_User_RoleID_fkey")
+  @@map("m_user")
 }
 
-// ── Transaction Tables (T_) ─────────────────────────────────
+model mT_RolePermission {
+  ID           Int     @unique(map: "MT_RolePermission_ID_key") @default(autoincrement())
+  PermissionID String  @id @db.VarChar(36)
+  RoleID       String  @db.VarChar(36)
+  ModuleName   String  @db.VarChar(100)
+  CanView      Boolean @default(false)
+  CanAdd       Boolean @default(false)
+  CanEdit      Boolean @default(false)
+  CanDelete    Boolean @default(false)
+  Role         m_Role  @relation(fields: [RoleID], references: [RoleID], onDelete: Cascade, map: "MT_RolePermission_RoleID_fkey")
 
-model T_Quotation {
-  ID                 Int       @default(autoincrement()) @unique
-  QuotationID        String    @id @default(uuid()) @db.VarChar(36)
-  DocumentNo         String?   @db.VarChar(100)
-  CustomerName       String    @db.VarChar(255)
-  CustomerFirstName  String?   @db.VarChar(100)
-  CustomerMiddleName String?   @db.VarChar(100)
-  CustomerLastName   String?   @db.VarChar(100)
-  CustomerDob        String?   @db.VarChar(50)
-  CustomerGender     String?   @db.VarChar(50)
-  CustomerEmail      String?   @db.VarChar(255)
-  CustomerPhone      String?   @db.VarChar(50)
-  CustomerAddress    String?   @db.Text
-  CustomerNotes      String?   @db.Text
-  HospitalName       String?   @default("VisayasMed Hospital") @db.VarChar(255)
-  PreparedBy         String?   @db.VarChar(255)
-  GuarantorId        String?   @db.VarChar(36)
-  GuarantorName      String?   @db.VarChar(255)
-  SessionType        String?   @db.VarChar(50)
-  PaymentStatus      String?   @db.VarChar(50)
-  Subtotal           Decimal   @db.Decimal(12, 2) @default(0.00)
-  Vat                Decimal   @db.Decimal(12, 2) @default(0.00)
-  Total              Decimal   @db.Decimal(12, 2) @default(0.00)
-  Status             String    @default("generated") @db.VarChar(50)
-  IsDeleted          Boolean   @default(false)
-  CreatedAt          DateTime  @default(now())
-  UpdatedAt          DateTime  @updatedAt
-  Items              T_QuotationItem[]
-
-  @@map("T_Quotation")
+  @@unique([RoleID, ModuleName], map: "MT_RolePermission_RoleID_ModuleName_key")
+  @@map("mt_rolepermission")
 }
 
-model T_QuotationItem {
-  ID          Int       @default(autoincrement()) @unique
-  ItemID      String    @id @default(uuid()) @db.VarChar(36)
-  QuotationID String    @db.VarChar(36)
-  Name        String    @db.VarChar(255)
-  Department  String?   @db.VarChar(255)
-  Price       Decimal   @db.Decimal(12, 2) @default(0.00)
-  Quantity    Int       @default(1)
-  Used        Int       @default(0)
-  Unit        String?   @db.VarChar(100)
-  Quotation   T_Quotation @relation(fields: [QuotationID], references: [QuotationID], onDelete: Cascade)
+model mT_UserOverride {
+  ID         Int     @unique(map: "MT_UserOverride_ID_key") @default(autoincrement())
+  OverrideID String  @id @db.VarChar(36)
+  UserID     String  @db.VarChar(36)
+  ModuleName String  @db.VarChar(100)
+  CanView    Boolean @default(false)
+  CanAdd     Boolean @default(false)
+  CanEdit    Boolean @default(false)
+  CanDelete  Boolean @default(false)
+  User       m_User  @relation(fields: [UserID], references: [UserID], onDelete: Cascade, map: "MT_UserOverride_UserID_fkey")
 
-  @@map("T_QuotationItem")
+  @@unique([UserID, ModuleName], map: "MT_UserOverride_UserID_ModuleName_key")
+  @@map("mt_useroverride")
 }
 
-model T_Guarantor {
-  ID                 Int       @default(autoincrement()) @unique
-  GuarantorID        String    @id @default(uuid()) @db.VarChar(36)
-  Name               String    @db.VarChar(255)
-  Description        String?   @db.Text
-  DiscountPercentage Decimal   @db.Decimal(5, 2) @default(0.00)
-  DiscountAmount     Decimal   @db.Decimal(12, 2) @default(0.00)
-  SortOrder          Int       @default(0)
-  IsActive           Boolean   @default(true)
-  IsDeleted          Boolean   @default(false)
-  CreatedAt          DateTime  @default(now())
-  UpdatedAt          DateTime  @updatedAt
+model t_AuditLog {
+  ID        Int      @unique(map: "T_AuditLog_ID_key") @default(autoincrement())
+  LogID     String   @id @db.VarChar(36)
+  UserID    String?  @db.VarChar(36)
+  Action    String   @db.VarChar(255)
+  Target    String?  @db.VarChar(255)
+  Details   String?  @db.Text
+  IPAddress String?  @db.VarChar(50)
+  CreatedAt DateTime @default(now())
 
-  @@map("T_Guarantor")
+  @@index([Action], map: "T_AuditLog_Action_idx")
+  @@index([CreatedAt], map: "T_AuditLog_CreatedAt_idx")
+  @@index([UserID], map: "T_AuditLog_UserID_idx")
+  @@map("t_auditlog")
 }
 
-model T_AuditLog {
-  ID          Int       @default(autoincrement()) @unique
-  LogID       String    @id @default(uuid()) @db.VarChar(36)
-  UserID      String?   @db.VarChar(36)
-  Action      String    @db.VarChar(255)
-  Target      String?   @db.VarChar(255)
-  Details     String?   @db.Text
-  IPAddress   String?   @db.VarChar(50)
-  CreatedAt   DateTime  @default(now())
+model t_Guarantor {
+  ID                 Int      @unique(map: "T_Guarantor_ID_key") @default(autoincrement())
+  GuarantorID        String   @id @db.VarChar(36)
+  Name               String   @db.VarChar(255)
+  Description        String?  @db.Text
+  IsDeleted          Boolean  @default(false)
+  CreatedAt          DateTime @default(now())
+  UpdatedAt          DateTime
+  DiscountAmount     Decimal  @default(0.00) @db.Decimal(12, 2)
+  DiscountPercentage Decimal  @default(0.00) @db.Decimal(5, 2)
+  IsActive           Boolean  @default(true)
+  SortOrder          Int      @default(0)
+  CreatedBy          String?  @db.VarChar(36)
+  UpdatedBy          String?  @db.VarChar(36)
 
-  @@index([UserID])
-  @@index([Action])
-  @@index([CreatedAt])
-  @@map("T_AuditLog")
+  @@map("t_guarantor")
 }
 
-// ── Bridge / Link Tables (MT_) ──────────────────────────────
+model t_Quotation {
+  ID                 Int               @unique(map: "T_Quotation_ID_key") @default(autoincrement())
+  QuotationID        String            @id @db.VarChar(36)
+  CustomerName       String            @db.VarChar(255)
+  CustomerEmail      String?           @db.VarChar(255)
+  CustomerPhone      String?           @db.VarChar(50)
+  HospitalName       String?           @default("VisayasMed Hospital") @db.VarChar(255)
+  PreparedBy         String?           @db.VarChar(255)
+  Subtotal           Decimal           @default(0.00) @db.Decimal(12, 2)
+  Vat                Decimal           @default(0.00) @db.Decimal(12, 2)
+  Total              Decimal           @default(0.00) @db.Decimal(12, 2)
+  Status             String            @default("generated") @db.VarChar(50)
+  IsDeleted          Boolean           @default(false)
+  CreatedAt          DateTime          @default(now())
+  UpdatedAt          DateTime
+  CustomerAddress    String?           @db.Text
+  CustomerDob        String?           @db.VarChar(50)
+  CustomerFirstName  String?           @db.VarChar(100)
+  CustomerGender     String?           @db.VarChar(50)
+  CustomerLastName   String?           @db.VarChar(100)
+  CustomerMiddleName String?           @db.VarChar(100)
+  CustomerNotes      String?           @db.Text
+  DocumentNo         String?           @db.VarChar(100)
+  GuarantorId        String?           @db.VarChar(36)
+  GuarantorName      String?           @db.VarChar(255)
+  PaymentStatus      String?           @db.VarChar(50)
+  SessionType        String?           @db.VarChar(50)
+  CreatedBy          String?           @db.VarChar(36)
+  UpdatedBy          String?           @db.VarChar(36)
+  Items              t_QuotationItem[]
 
-model MT_RolePermission {
-  ID           Int       @default(autoincrement()) @unique
-  PermissionID String    @id @default(uuid()) @db.VarChar(36)
-  RoleID       String    @db.VarChar(36)
-  ModuleName   String    @db.VarChar(100)
-  CanView      Boolean   @default(false)
-  CanAdd       Boolean   @default(false)
-  CanEdit      Boolean   @default(false)
-  CanDelete    Boolean   @default(false)
-  Role         M_Role    @relation(fields: [RoleID], references: [RoleID], onDelete: Cascade)
-
-  @@unique([RoleID, ModuleName])
-  @@map("MT_RolePermission")
+  @@map("t_quotation")
 }
 
-model MT_UserOverride {
-  ID           Int       @default(autoincrement()) @unique
-  OverrideID   String    @id @default(uuid()) @db.VarChar(36)
-  UserID       String    @db.VarChar(36)
-  ModuleName   String    @db.VarChar(100)
-  CanView      Boolean   @default(false)
-  CanAdd       Boolean   @default(false)
-  CanEdit      Boolean   @default(false)
-  CanDelete    Boolean   @default(false)
-  User         M_User    @relation(fields: [UserID], references: [UserID], onDelete: Cascade)
+model t_QuotationItem {
+  ID          Int         @unique(map: "T_QuotationItem_ID_key") @default(autoincrement())
+  ItemID      String      @id @db.VarChar(36)
+  QuotationID String      @db.VarChar(36)
+  Name        String      @db.VarChar(255)
+  Department  String?     @db.VarChar(255)
+  Price       Decimal     @default(0.00) @db.Decimal(12, 2)
+  Quantity    Int         @default(1)
+  Unit        String?     @db.VarChar(100)
+  Used        Int         @default(0)
+  Quotation   t_Quotation @relation(fields: [QuotationID], references: [QuotationID], onDelete: Cascade, map: "T_QuotationItem_QuotationID_fkey")
 
-  @@unique([UserID, ModuleName])
-  @@map("MT_UserOverride")
+  @@index([QuotationID], map: "T_QuotationItem_QuotationID_fkey")
+  @@map("t_quotationitem")
 }

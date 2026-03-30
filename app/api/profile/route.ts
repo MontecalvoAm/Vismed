@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
 import bcrypt from 'bcryptjs';
 import { invalidatePermCache } from '@/lib/permCache';
+import { createAuditLog } from '@/lib/firestore/audit';
+import { getClientIp } from '@/lib/rateLimit';
 
 const isStrongPassword = (password: string) => {
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
@@ -62,9 +64,22 @@ export async function PUT(req: NextRequest) {
         }
 
         if (Object.keys(updateData).length > 0) {
+            // Track who updated
+            updateData.UpdatedBy = user.UserID;
+
             await prisma.m_User.update({
                 where: { UserID: user.UserID },
                 data: updateData
+            });
+
+            // Audit the profile update
+            await createAuditLog({
+                Action: NewPassword ? 'UPDATE_USER_PASSWORD' : 'UPDATE_USER_PROFILE',
+                Module: 'Users',
+                Target: user.UserID,
+                Details: JSON.stringify({ FirstName, LastName, passwordChanged: !!NewPassword }),
+                UserID: user.UserID,
+                IpAddress: getClientIp(req),
             });
         }
 

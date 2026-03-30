@@ -436,37 +436,36 @@ function NestedLogsTable({ group, activeQuotation, perms, handleDelete }: { grou
                                                     </thead>
                                                     <tbody className="bg-white divide-y divide-slate-100">
                                                         {(log.NewValues as any).Items.map((newItem: any, i: number) => {
-                                                            const oldItem = (log.OldValues as any).Items.find((oi: any) => oi.Id === newItem.Id) || (log.OldValues as any).Items[i];
-                                                            const oldUsed = oldItem ? oldItem.Used : 0;
-                                                            const newUsed = newItem.Used;
+                                                            // Match by Id or fallback to index matching
+                                                            const oldValuesArr = (log.OldValues as any)?.Items || [];
+                                                            const oldItem = oldValuesArr.find((oi: any) => oi.Id === newItem.Id) || oldValuesArr[i];
+                                                            
+                                                            const oldUsed = oldItem ? (oldItem.Used || 0) : 0;
+                                                            const newUsed = newItem.Used || 0;
 
-                                                            // Live exact matching for specific quantity
-                                                            let specificQty: number | string = newItem.Qty || oldItem?.Qty || '-';
-                                                            if (activeQuotation && activeQuotation.Items) {
-                                                                const matchingActiveObj = activeQuotation.Items.find(qi => qi.Id === newItem.Id || qi.Name === newItem.Name);
-                                                                if (matchingActiveObj && matchingActiveObj.Quantity !== undefined) {
-                                                                    specificQty = matchingActiveObj.Quantity;
-                                                                }
-                                                            }
+                                                            // Only show if there was an actual change in this item
+                                                            if (oldUsed === newUsed) return null;
 
+                                                            // Use the Item's Quantity (Total Required) from NewValues or OldValues
+                                                            const totalRequired = newItem.Qty || oldItem?.Qty || '-';
                                                             const itemName = newItem.Name || oldItem?.Name || 'Unknown Item';
-                                                            const remainingQty = typeof specificQty === 'number' ? specificQty - newUsed : '-';
+                                                            
+                                                            const remainingQty = typeof totalRequired === 'number' ? totalRequired - newUsed : '-';
 
-                                                            if (oldUsed !== newUsed) {
-                                                                return (
-                                                                    <tr key={newItem.Id || i}>
-                                                                        <td className="px-3 py-2 font-bold text-[10px] text-slate-800 break-words max-w-[150px]">{itemName}</td>
-                                                                        <td className="px-3 py-2 font-bold text-[10px] text-slate-800 text-center">{specificQty}</td>
-                                                                        <td className="px-3 py-2 font-bold text-[10px] text-rose-600 text-center">{oldUsed}</td>
-                                                                        <td className="px-3 py-2 font-bold text-[10px] text-emerald-600 text-center">{newUsed}</td>
-                                                                        <td className={`px-3 py-2 font-bold text-[10px] text-center ${remainingQty === '-' ? 'text-slate-400' :
-                                                                            remainingQty === 0 ? 'text-emerald-600' :
-                                                                                'text-amber-600'
-                                                                            }`}>{remainingQty}</td>
-                                                                    </tr>
-                                                                );
-                                                            }
-                                                            return null;
+                                                            return (
+                                                                <tr key={newItem.Id || i} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-3 py-2 font-bold text-[10px] text-slate-800 break-words max-w-[150px]">{itemName}</td>
+                                                                    <td className="px-3 py-2 font-bold text-[10px] text-slate-800 text-center bg-slate-50/50">{totalRequired}</td>
+                                                                    <td className="px-3 py-2 font-bold text-[10px] text-rose-500 text-center">{oldUsed}</td>
+                                                                    <td className="px-3 py-2 font-bold text-[10px] text-emerald-600 text-center">{newUsed}</td>
+                                                                    <td className={`px-3 py-2 font-bold text-[10px] text-center ${
+                                                                        remainingQty === '-' ? 'text-slate-400' :
+                                                                        remainingQty === 0 ? 'text-emerald-600 bg-emerald-50' : 
+                                                                        remainingQty < 0 ? 'text-rose-600 bg-rose-50' :
+                                                                        'text-amber-600 bg-amber-50'
+                                                                    }`}>{remainingQty}</td>
+                                                                </tr>
+                                                            );
                                                         })}
                                                     </tbody>
                                                 </table>

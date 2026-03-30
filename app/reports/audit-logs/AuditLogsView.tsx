@@ -227,6 +227,7 @@ export default function AuditLogsView({ initialLogs, initialQuotations }: AuditL
                 <StandardAuditLogsTable
                     data={filteredData}
                     isLoading={false}
+                    activeTab={activeTab}
                 />
             )}
         </div>

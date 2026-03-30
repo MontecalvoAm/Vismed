@@ -24,10 +24,11 @@ interface AuditLogEntry {
 interface StandardAuditLogsTableProps {
     data: AuditLogEntry[];
     isLoading: boolean;
+    activeTab?: string;
     onRefresh?: () => void;
 }
 
-export default function StandardAuditLogsTable({ data, isLoading, onRefresh }: StandardAuditLogsTableProps) {
+export default function StandardAuditLogsTable({ data, isLoading, activeTab, onRefresh }: StandardAuditLogsTableProps) {
     const { confirm } = useConfirm();
     const { user } = useAuth();
     const perms = user?.Permissions?.Reports;
@@ -103,8 +104,12 @@ export default function StandardAuditLogsTable({ data, isLoading, onRefresh }: S
                         <tr>
                             <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Date & Time</th>
                             <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Action</th>
-                            <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Details</th>
-                            <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">User</th>
+                            {activeTab !== 'logins' && (
+                                <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">Details</th>
+                            )}
+                            <th className="px-5 py-4 text-left font-semibold text-gray-600 tracking-wider whitespace-nowrap">
+                                {activeTab === 'created' ? 'Created By:' : 'User'}
+                            </th>
                             {perms?.CanDelete && (
                                 <th className="px-5 py-4 text-center font-semibold text-gray-600 tracking-wider whitespace-nowrap">Actions</th>
                             )}
@@ -132,20 +137,22 @@ export default function StandardAuditLogsTable({ data, isLoading, onRefresh }: S
                                             {log.Action}
                                         </span>
                                     </td>
-                                    <td className="px-5 py-4 text-gray-600 max-w-md">
-                                        <div className="font-medium text-gray-800 mb-1">{log.Description || log.Details || (log.RecordID ? `Target: ${log.RecordID}` : '')}</div>
-                                        {Object.keys(meta).length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5 mt-1">
-                                                {Object.entries(meta).map(([k, v]) => (
-                                                     k !== 'EditedBy' && k !== 'PatientName' && k !== 'GuarantorName' && (
-                                                          <span key={k} className="inline-flex items-center text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded shadow-sm">
-                                                              <span className="text-gray-400 font-medium mr-1">{k}:</span> {String(v)}
-                                                          </span>
-                                                     )
-                                                ))}
-                                            </div>
-                                        )}
-                                    </td>
+                                    {activeTab !== 'logins' && (
+                                        <td className="px-5 py-4 text-gray-600 max-w-md">
+                                            <div className="font-medium text-gray-800 mb-1">{log.Description || log.Details || (log.RecordID ? `Target: ${log.RecordID}` : '')}</div>
+                                            {Object.keys(meta).length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                                    {Object.entries(meta).map(([k, v]) => (
+                                                        k !== 'EditedBy' && k !== 'PatientName' && k !== 'GuarantorName' && (
+                                                            <span key={k} className="inline-flex items-center text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded shadow-sm">
+                                                                <span className="text-gray-400 font-medium mr-1">{k}:</span> {String(v)}
+                                                            </span>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </td>
+                                    )}
                                     <td className="px-5 py-4 whitespace-nowrap text-gray-700">
                                         <div className="flex items-center gap-2">
                                             <div className="w-7 h-7 bg-brand-light-blue/20 rounded-full flex items-center justify-center shrink-0">
