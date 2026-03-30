@@ -3,6 +3,11 @@ const nextConfig = {
     // Enable gzip/brotli compression for all responses — reduces transfer size by 20-30%
     compress: true,
 
+    // Suppress warning about quality 100 not being documented
+    images: {
+        qualities: [25, 50, 75, 100],
+    },
+
     experimental: {
         // Tree-shake lucide-react so only used icons are bundled
         optimizePackageImports: ['lucide-react'],
