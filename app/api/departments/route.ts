@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     try {
         const departments = await prisma.m_Department.findMany({
             where: { IsDeleted: false },
-            orderBy: { SortOrder: 'asc' },
+            orderBy: { DepartmentName: 'asc' },
         });
 
         return NextResponse.json({ success: true, departments });

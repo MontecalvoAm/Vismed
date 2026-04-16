@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/context/ConfirmContext';
+import { useServerTable } from '@/hooks/useServerTable';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 import {
     Archive, Users, ShieldCheck, Building2, Stethoscope, ClipboardList,
@@ -88,21 +89,6 @@ function ActionButtons({
             )}
         </div>
     );
-}
-
-// ── Pagination ─────────────────────────────────────────────────
-
-function usePagination<T>(items: T[], perPage: number) {
-    const [page, setPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(perPage);
-
-    const total = Math.max(1, Math.ceil(items.length / rowsPerPage));
-    const safePage = Math.min(page, total);
-    const paginated = items.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
-
-    useEffect(() => { if (page > total) setPage(total); }, [total, page]);
-
-    return { page: safePage, setPage, rowsPerPage, setRowsPerPage, total, paginated };
 }
 
 // ── Generic Pagination Footer ──────────────────────────────────
@@ -206,7 +192,23 @@ export default function ArchiveClient({
     const { confirm } = useConfirm();
     const router = useRouter();
 
-    const [search, setSearch] = useState('');
+    const {
+        data: records,
+        meta,
+        loading: loadingData,
+        page,
+        pageSize,
+        search,
+        handlePageChange,
+        handlePageSizeChange,
+        handleSearchChange,
+        refresh
+    } = useServerTable({
+        endpoint: '/api/archive',
+        dataKey: 'records',
+        initialPageSize: 10,
+    });
+
     const [loadingAction, setLoadingAction] = useState(false);
     const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
         isOpen: false, type: 'success', title: '', message: ''
@@ -214,7 +216,8 @@ export default function ArchiveClient({
 
     const handleTabChange = (key: ArchiveTab) => {
         router.push(`?tab=${key}`);
-        setSearch(''); // reset search when tab changes
+        handleSearchChange(''); // reset search when tab changes
+        handlePageChange(1);    // reset page
     }
 
     // ── Actions ──────────────────────────────────────────────────
@@ -236,7 +239,7 @@ export default function ArchiveClient({
             const data = await res.json();
             if (!data.success) throw new Error(data.error);
             setFeedback({ isOpen: true, type: 'success', title: 'Restored', message: 'Record restored successfully.' });
-            router.refresh(); // Refresh page to get updated records from server
+            refresh(); // Manual refresh via hook instead of router.refresh()
         } catch (e: any) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: e.message });
         } finally {
@@ -262,7 +265,7 @@ export default function ArchiveClient({
             const data = await res.json();
             if (!data.success) throw new Error(data.error);
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Record permanently deleted.' });
-            router.refresh();
+            refresh();
         } catch (e: any) {
             setFeedback({ isOpen: true, type: 'error', title: 'Error', message: e.message });
         } finally {
@@ -282,30 +285,26 @@ export default function ArchiveClient({
 
     // ── Render sub-tables ────────────────────────────────────────
     const renderTabContent = () => {
+        const commonTableProps = {
+            records,
+            loading: loadingData || loadingAction,
+            search,
+            onSearch: handleSearchChange,
+            perms,
+            onRestore: handleRestore,
+            onDelete: handlePermanentDelete,
+            meta,
+            onPageChange: handlePageChange,
+            onRowsChange: handlePageSizeChange
+        };
+
         switch (initialTab) {
-            case 'guarantors': return (
-                <GuarantorsTab records={serverRecords} loading={loadingAction} search={search} onSearch={setSearch}
-                    perms={perms} onRestore={handleRestore} onDelete={handlePermanentDelete} />
-            );
-            case 'quotations': return (
-                <QuotationsTab records={serverRecords} loading={loadingAction} search={search} onSearch={setSearch}
-                    perms={perms} onRestore={handleRestore} onDelete={handlePermanentDelete} />
-            );
-            case 'departments': return (
-                <DepartmentsTab records={serverRecords} loading={loadingAction} search={search} onSearch={setSearch}
-                    perms={perms} onRestore={handleRestore} onDelete={handlePermanentDelete} />
-            );
-            case 'services': return (
-                <ServicesTab records={serverRecords} loading={loadingAction} search={search} onSearch={setSearch}
-                    perms={perms} onRestore={handleRestore} onDelete={handlePermanentDelete} />
-            );
-            case 'users': return (
-                <UsersTab records={serverRecords} loading={loadingAction} search={search} onSearch={setSearch}
-                    perms={perms} onRestore={handleRestore} onDelete={handlePermanentDelete} />
-            );
-            case 'logs': return (
-                <LogsTab records={serverRecords} loading={loadingAction} search={search} onSearch={setSearch} />
-            );
+            case 'guarantors': return <GuarantorsTab {...commonTableProps} />;
+            case 'quotations': return <QuotationsTab {...commonTableProps} />;
+            case 'departments': return <DepartmentsTab {...commonTableProps} />;
+            case 'services': return <ServicesTab {...commonTableProps} />;
+            case 'users': return <UsersTab {...commonTableProps} />;
+            case 'logs': return <LogsTab {...commonTableProps} />;
         }
     };
 
@@ -366,19 +365,16 @@ interface TabProps {
     perms?: any;
     onRestore: (r: ArchiveRecord) => void;
     onDelete: (r: ArchiveRecord) => void;
+    meta: any;
+    onPageChange: (p: number) => void;
+    onRowsChange: (n: number) => void;
 }
 
 // ── Guarantors Tab ────────────────────────────────────────────
 
-function GuarantorsTab({ records, loading, search, onSearch, perms, onRestore, onDelete }: TabProps) {
-    const filtered = records.filter(r =>
-        (r.Name || r.GuarantorName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.Description || '').toLowerCase().includes(search.toLowerCase())
-    );
-    const { page, setPage, rowsPerPage, setRowsPerPage, total, paginated } = usePagination(filtered, 10);
-
+function GuarantorsTab({ records, loading, search, onSearch, perms, onRestore, onDelete, meta, onPageChange, onRowsChange }: TabProps) {
     return (
-        <TableShell loading={loading} empty={!loading && filtered.length === 0}
+        <TableShell loading={loading} empty={!loading && records.length === 0}
             emptyMsg="No archived guarantors." search={search} onSearch={onSearch}>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -393,7 +389,7 @@ function GuarantorsTab({ records, loading, search, onSearch, perms, onRestore, o
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
-                        {paginated.map(r => (
+                        {records.map(r => (
                             <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{r.Name || r.GuarantorName || '—'}</td>
                                 <td className="px-6 py-4 text-gray-500 max-w-xs truncate">{r.Description || <span className="italic text-gray-300">—</span>}</td>
@@ -408,25 +404,17 @@ function GuarantorsTab({ records, loading, search, onSearch, perms, onRestore, o
                     </tbody>
                 </table>
             </div>
-            <PaginationFooter page={page} total={total} rowsPerPage={rowsPerPage}
-                onPageChange={setPage} onRowsChange={setRowsPerPage} totalItems={filtered.length} />
+            <PaginationFooter page={meta.currentPage} total={meta.totalPages} rowsPerPage={meta.pageSize}
+                onPageChange={onPageChange} onRowsChange={onRowsChange} totalItems={meta.totalItems} />
         </TableShell>
     );
 }
 
 // ── Quotations Tab ────────────────────────────────────────────
 
-function QuotationsTab({ records, loading, search, onSearch, perms, onRestore, onDelete }: TabProps) {
-    const filtered = records.filter(r =>
-        (r.CustomerFirstName || r.CustomerName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.CustomerLastName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.DocumentNo || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.PreparedBy || '').toLowerCase().includes(search.toLowerCase())
-    );
-    const { page, setPage, rowsPerPage, setRowsPerPage, total, paginated } = usePagination(filtered, 10);
-
+function QuotationsTab({ records, loading, search, onSearch, perms, onRestore, onDelete, meta, onPageChange, onRowsChange }: TabProps) {
     return (
-        <TableShell loading={loading} empty={!loading && filtered.length === 0}
+        <TableShell loading={loading} empty={!loading && records.length === 0}
             emptyMsg="No archived quotations." search={search} onSearch={onSearch}>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -444,7 +432,7 @@ function QuotationsTab({ records, loading, search, onSearch, perms, onRestore, o
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
-                        {paginated.map(r => (
+                        {records.map(r => (
                             <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-600">{r.DocumentNo || '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -480,23 +468,17 @@ function QuotationsTab({ records, loading, search, onSearch, perms, onRestore, o
                     </tbody>
                 </table>
             </div>
-            <PaginationFooter page={page} total={total} rowsPerPage={rowsPerPage}
-                onPageChange={setPage} onRowsChange={setRowsPerPage} totalItems={filtered.length} />
+            <PaginationFooter page={meta.currentPage} total={meta.totalPages} rowsPerPage={meta.pageSize}
+                onPageChange={onPageChange} onRowsChange={onRowsChange} totalItems={meta.totalItems} />
         </TableShell>
     );
 }
 
 // ── Departments Tab ───────────────────────────────────────────
 
-function DepartmentsTab({ records, loading, search, onSearch, perms, onRestore, onDelete }: TabProps) {
-    const filtered = records.filter(r =>
-        (r.DepartmentName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.Description || '').toLowerCase().includes(search.toLowerCase())
-    );
-    const { page, setPage, rowsPerPage, setRowsPerPage, total, paginated } = usePagination(filtered, 10);
-
+function DepartmentsTab({ records, loading, search, onSearch, perms, onRestore, onDelete, meta, onPageChange, onRowsChange }: TabProps) {
     return (
-        <TableShell loading={loading} empty={!loading && filtered.length === 0}
+        <TableShell loading={loading} empty={!loading && records.length === 0}
             emptyMsg="No archived departments." search={search} onSearch={onSearch}>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -512,7 +494,7 @@ function DepartmentsTab({ records, loading, search, onSearch, perms, onRestore, 
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
-                        {paginated.map(r => (
+                        {records.map(r => (
                             <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{r.DepartmentName || '—'}</td>
                                 <td className="px-6 py-4 text-gray-500 max-w-xs truncate">{r.Description || <span className="italic text-gray-300">—</span>}</td>
@@ -528,23 +510,17 @@ function DepartmentsTab({ records, loading, search, onSearch, perms, onRestore, 
                     </tbody>
                 </table>
             </div>
-            <PaginationFooter page={page} total={total} rowsPerPage={rowsPerPage}
-                onPageChange={setPage} onRowsChange={setRowsPerPage} totalItems={filtered.length} />
+            <PaginationFooter page={meta.currentPage} total={meta.totalPages} rowsPerPage={meta.pageSize}
+                onPageChange={onPageChange} onRowsChange={onRowsChange} totalItems={meta.totalItems} />
         </TableShell>
     );
 }
 
 // ── Services Tab ──────────────────────────────────────────────
 
-function ServicesTab({ records, loading, search, onSearch, perms, onRestore, onDelete }: TabProps) {
-    const filtered = records.filter(r =>
-        (r.ServiceName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.Description || '').toLowerCase().includes(search.toLowerCase())
-    );
-    const { page, setPage, rowsPerPage, setRowsPerPage, total, paginated } = usePagination(filtered, 10);
-
+function ServicesTab({ records, loading, search, onSearch, perms, onRestore, onDelete, meta, onPageChange, onRowsChange }: TabProps) {
     return (
-        <TableShell loading={loading} empty={!loading && filtered.length === 0}
+        <TableShell loading={loading} empty={!loading && records.length === 0}
             emptyMsg="No archived services or items." search={search} onSearch={onSearch}>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -561,7 +537,7 @@ function ServicesTab({ records, loading, search, onSearch, perms, onRestore, onD
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
-                        {paginated.map(r => (
+                        {records.map(r => (
                             <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{r.ServiceName || '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-500">{r.Unit || '—'}</td>
@@ -580,24 +556,17 @@ function ServicesTab({ records, loading, search, onSearch, perms, onRestore, onD
                     </tbody>
                 </table>
             </div>
-            <PaginationFooter page={page} total={total} rowsPerPage={rowsPerPage}
-                onPageChange={setPage} onRowsChange={setRowsPerPage} totalItems={filtered.length} />
+            <PaginationFooter page={meta.currentPage} total={meta.totalPages} rowsPerPage={meta.pageSize}
+                onPageChange={onPageChange} onRowsChange={onRowsChange} totalItems={meta.totalItems} />
         </TableShell>
     );
 }
 
 // ── Users Tab ─────────────────────────────────────────────────
 
-function UsersTab({ records, loading, search, onSearch, perms, onRestore, onDelete }: TabProps) {
-    const filtered = records.filter(r =>
-        (r.FirstName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.LastName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.Email || '').toLowerCase().includes(search.toLowerCase())
-    );
-    const { page, setPage, rowsPerPage, setRowsPerPage, total, paginated } = usePagination(filtered, 10);
-
+function UsersTab({ records, loading, search, onSearch, perms, onRestore, onDelete, meta, onPageChange, onRowsChange }: TabProps) {
     return (
-        <TableShell loading={loading} empty={!loading && filtered.length === 0}
+        <TableShell loading={loading} empty={!loading && records.length === 0}
             emptyMsg="No archived users." search={search} onSearch={onSearch}>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -613,7 +582,7 @@ function UsersTab({ records, loading, search, onSearch, perms, onRestore, onDele
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
-                        {paginated.map(r => (
+                        {records.map(r => (
                             <tr key={r.id} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-3">
@@ -641,24 +610,17 @@ function UsersTab({ records, loading, search, onSearch, perms, onRestore, onDele
                     </tbody>
                 </table>
             </div>
-            <PaginationFooter page={page} total={total} rowsPerPage={rowsPerPage}
-                onPageChange={setPage} onRowsChange={setRowsPerPage} totalItems={filtered.length} />
+            <PaginationFooter page={meta.currentPage} total={meta.totalPages} rowsPerPage={meta.pageSize}
+                onPageChange={onPageChange} onRowsChange={onRowsChange} totalItems={meta.totalItems} />
         </TableShell>
     );
 }
 
 // ── Logs Tab (read-only) ──────────────────────────────────────
 
-function LogsTab({ records, loading, search, onSearch }: Omit<TabProps, 'perms' | 'onRestore' | 'onDelete'>) {
-    const filtered = records.filter(r =>
-        (r.Action || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.Module || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.Description || '').toLowerCase().includes(search.toLowerCase())
-    );
-    const { page, setPage, rowsPerPage, setRowsPerPage, total, paginated } = usePagination(filtered, 10);
-
+function LogsTab({ records, loading, search, onSearch, meta, onPageChange, onRowsChange }: Omit<TabProps, 'perms' | 'onRestore' | 'onDelete'>) {
     return (
-        <TableShell loading={loading} empty={!loading && filtered.length === 0}
+        <TableShell loading={loading} empty={!loading && records.length === 0}
             emptyMsg="No audit logs found." search={search} onSearch={onSearch}>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -671,7 +633,7 @@ function LogsTab({ records, loading, search, onSearch }: Omit<TabProps, 'perms' 
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
-                        {paginated.map((r, idx) => (
+                        {records.map((r, idx) => (
                             <tr key={r.id || idx} className="odd:bg-white even:bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-400 text-xs">{formatDate(r.CreatedAt)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -684,8 +646,8 @@ function LogsTab({ records, loading, search, onSearch }: Omit<TabProps, 'perms' 
                     </tbody>
                 </table>
             </div>
-            <PaginationFooter page={page} total={total} rowsPerPage={rowsPerPage}
-                onPageChange={setPage} onRowsChange={setRowsPerPage} totalItems={filtered.length} />
+            <PaginationFooter page={meta.currentPage} total={meta.totalPages} rowsPerPage={meta.pageSize}
+                onPageChange={onPageChange} onRowsChange={onRowsChange} totalItems={meta.totalItems} />
         </TableShell>
     );
 }

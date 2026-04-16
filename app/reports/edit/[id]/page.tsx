@@ -11,7 +11,7 @@ export default async function EditQuotationPage(props: { params: Promise<{ id: s
 
     // Fetch initial data on the server
     const [dSnap, sSnap, gSnap, qDoc] = await Promise.all([
-        prisma.m_Department.findMany({ where: { IsActive: true, IsDeleted: false } as any, orderBy: { SortOrder: 'asc' } }),
+        prisma.m_Department.findMany({ where: { IsActive: true, IsDeleted: false } as any, orderBy: { DepartmentName: 'asc' } }),
         prisma.m_Service.findMany({ where: { IsActive: true, IsDeleted: false } as any, orderBy: { ServiceName: 'asc' } }),
         (prisma as any).t_Guarantor.findMany({ where: { IsDeleted: false } as any, orderBy: { Name: 'asc' } }),
         prisma.t_Quotation.findUnique({

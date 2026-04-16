@@ -168,9 +168,9 @@ const BatchPrintRenderer = forwardRef<HTMLDivElement, BatchPrintRendererProps>(
                                         visibility: isLastPage ? 'visible' : 'hidden'
                                     }}>
                                         {[
-                                            { main: preparedBy || 'System Generated', sub: 'Prepared By' },
+                                            { main: preparedBy || 'System Generated', sub: 'Prepared By:' },
                                             { main: '', sub: '' },
-                                            { main: 'Verified By', sub: 'Finance Department' },
+                                            { main: 'Verified By', sub: '' },
                                         ].map(({ main, sub }, i) => (
                                             <div key={i}>
                                                 {sub ? (

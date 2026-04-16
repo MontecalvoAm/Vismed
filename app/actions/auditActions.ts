@@ -50,6 +50,28 @@ export async function createAuditLog(data: {
     }
 }
 
+export async function createBulkAuditLogs(logs: {
+    Action: string;
+    Target: string;
+    Details?: string;
+    UserID?: string;
+}[]) {
+    try {
+        await (prisma as any).t_AuditLog.createMany({
+            data: logs.map(log => ({
+                Action: log.Action,
+                Target: log.Target,
+                Details: log.Details || "",
+                UserID: log.UserID || null,
+            }))
+        });
+        return { success: true };
+    } catch (err) {
+        console.error('Failed to create bulk audit logs:', err);
+        return { success: false, error: 'Failed to create logs' };
+    }
+}
+
 import { createAuditLog as firestoreAuditLog } from '@/lib/firestore/audit';
 export async function createDetailedAuditLogAction(entry: any) {
     try {

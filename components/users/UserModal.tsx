@@ -125,8 +125,8 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-300 md:pl-64">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h2 className="text-lg font-semibold text-gray-800">

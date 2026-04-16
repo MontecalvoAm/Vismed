@@ -2,6 +2,11 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { permCache, CACHE_TTL_MS } from '@/lib/permCache';
 
+// Global cache for module list to avoid re-fetching on every request for Super Admins
+let cachedModuleList: string[] | null = null;
+let lastModuleFetch = 0;
+const MODULE_CACHE_TTL = 300_000; // 5 minutes
+
 export async function getServerUser() {
     const cookieStore = await cookies();
     const UserID = cookieStore.get('vm_token')?.value;
@@ -29,7 +34,7 @@ export async function getServerUser() {
             }
         });
 
-        if (!user || !user.IsActive) return null;
+        if (!user || !user.IsActive || user.IsDeleted) return null;
 
         // SINGLE-USER LOGIN CHECK: Verify Session ID
         if (user.CurrentSessionID && user.CurrentSessionID !== sessionId) {
@@ -41,11 +46,18 @@ export async function getServerUser() {
 
         // SPECIAL ACCESS: Super Admin or specific email gets ALL permissions
         if (user.Role?.RoleName === 'Super Admin' || user.Email === 'aljon.montecalvo08@gmail.com') {
-            const allModules = await prisma.m_Module.findMany({
-                where: { IsActive: true }
-            });
-            allModules.forEach(m => {
-                resolved[m.ModuleName] = {
+            // Fetch modules if cache is stale or missing
+            if (!cachedModuleList || (Date.now() - lastModuleFetch > MODULE_CACHE_TTL)) {
+                const modules = await prisma.m_Module.findMany({
+                    where: { IsActive: true, IsDeleted: false },
+                    select: { ModuleName: true }
+                });
+                cachedModuleList = modules.map(m => m.ModuleName);
+                lastModuleFetch = Date.now();
+            }
+
+            cachedModuleList.forEach(moduleName => {
+                resolved[moduleName] = {
                     CanView: true,
                     CanAdd: true,
                     CanEdit: true,

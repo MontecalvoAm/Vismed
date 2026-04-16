@@ -2,8 +2,9 @@
 
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/getServerUser';
-import { createAuditLog } from '@/lib/firestore/audit';
+import { createAuditLog, createBulkAuditLogs } from './auditActions';
 import crypto from 'crypto';
+import { revalidatePath } from 'next/cache';
 
 export async function saveQuotationAction(data: any, isEditing: boolean = false, editId: string | null = null) {
     try {
@@ -21,34 +22,35 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
         const documentNoToSave = data.DocumentNo || quotationIdToSave.substring(0, 8);
 
         if (isEditing && editId) {
-            // Update Quotation
-            await (prisma as any).t_Quotation.update({
-                where: { QuotationID: editId },
-                data: {
-                    ...quotationData,
-                    UpdatedBy: user.UserID,
-                    UpdatedAt: now,
+            // Update Quotation and Items in a single transaction
+            await prisma.$transaction(async (tx) => {
+                await (tx as any).t_Quotation.update({
+                    where: { QuotationID: editId },
+                    data: {
+                        ...quotationData,
+                        UpdatedBy: user.UserID,
+                        UpdatedAt: now,
+                    }
+                });
+
+                if (Items && Items.length > 0) {
+                    await (tx as any).t_QuotationItem.deleteMany({ where: { QuotationID: editId } });
+                    await (tx as any).t_QuotationItem.createMany({
+                        data: Items.map((item: any) => ({
+                            ItemID: item.Id?.includes('0.') ? crypto.randomUUID() : (item.Id || crypto.randomUUID()),
+                            QuotationID: editId,
+                            Name: item.Name,
+                            Department: item.Department,
+                            Price: item.Price || 0,
+                            Quantity: item.Quantity || 1,
+                            Used: item.Used || 0,
+                            Unit: item.Unit
+                        }))
+                    });
                 }
             });
 
-            // Recreate Items if passed
-            if (Items && Items.length > 0) {
-                 await (prisma as any).t_QuotationItem.deleteMany({ where: { QuotationID: editId } });
-                 await (prisma as any).t_QuotationItem.createMany({
-                     data: Items.map((item: any) => ({
-                         ItemID: item.Id?.includes('0.') ? crypto.randomUUID() : (item.Id || crypto.randomUUID()),
-                         QuotationID: editId,
-                         Name: item.Name,
-                         Department: item.Department,
-                         Price: item.Price || 0,
-                         Quantity: item.Quantity || 1,
-                         Used: item.Used || 0,
-                         Unit: item.Unit
-                     }))
-                 });
-            }
-
-            // Create Audit Log using unified helper
+            // Create Audit Log (non-blocking or handled after transaction)
             await createAuditLog({
                 Action: 'UPDATE_QUOTATION',
                 Module: 'Quotations',
@@ -84,7 +86,6 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
             });
             resultId = newQuotation.QuotationID;
 
-            // Create Audit Log using unified helper
             await createAuditLog({
                 Action: 'CREATE_QUOTATION',
                 Module: 'Quotations',
@@ -94,9 +95,64 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
             });
         }
 
+        revalidatePath('/reports');
         return { success: true, id: resultId };
     } catch (e: any) {
         console.error("Action error saving quotation:", e);
         return { success: false, error: e.message };
     }
 }
+
+export async function deleteQuotationAction(id: string) {
+    try {
+        const user = await getServerUser() as any;
+        if (!user) throw new Error("Unauthorized");
+
+        await (prisma as any).t_Quotation.update({
+            where: { QuotationID: id },
+            data: { IsDeleted: true, UpdatedBy: user.UserID }
+        });
+
+        await createAuditLog({
+            Action: 'DELETE_QUOTATION',
+            Target: id,
+            Details: `Soft-deleted quotation: ${id}`,
+            UserID: user.UserID
+        });
+
+        revalidatePath('/reports');
+        revalidatePath('/archive');
+        return { success: true };
+    } catch (e: any) {
+        console.error("Action error deleting quotation:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function bulkDeleteQuotationsAction(ids: string[]) {
+    try {
+        const user = await getServerUser() as any;
+        if (!user) throw new Error("Unauthorized");
+
+        await (prisma as any).t_Quotation.updateMany({
+            where: { QuotationID: { in: ids } },
+            data: { IsDeleted: true, UpdatedBy: user.UserID }
+        });
+
+        // Use new bulk audit log function for better performance
+        await createBulkAuditLogs(ids.map(id => ({
+            Action: 'DELETE_QUOTATION_BULK',
+            Target: id,
+            Details: `Bulk soft-deleted quotation: ${id}`,
+            UserID: user.UserID
+        })));
+
+        revalidatePath('/reports');
+        revalidatePath('/archive');
+        return { success: true };
+    } catch (e: any) {
+        console.error("Action error bulk deleting quotations:", e);
+        return { success: false, error: e.message };
+    }
+}
+

@@ -9,12 +9,13 @@ import SidebarLayout from '@/components/layout/SidebarLayout';
 import { useConfirm } from '@/context/ConfirmContext';
 import {
     Plus, Edit2, Trash2, Shield,
-    Users, ShieldCheck, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, Key
+    Users, ShieldCheck, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, Key, ChevronDown
 } from 'lucide-react';
 import UserOverrideModal from '@/components/users/UserOverrideModal';
 import { useAuth } from '@/context/AuthContext';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 import UsersFilter from '@/components/users/UsersFilter';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 interface UsersPageViewProps {
@@ -56,8 +57,8 @@ export default function UsersPageView({
     const currentPage = parseInt(searchParams.get('page') || '1', 10);
     const rowsPerPage = parseInt(searchParams.get('limit') || '10', 10);
 
-    // Role Filters
     const roleSearchTerm = searchParams.get('rsearch') || '';
+    const roleStatusFilter = searchParams.get('rstatus') || 'all';
     const roleCurrentPage = parseInt(searchParams.get('rpage') || '1', 10);
     const roleRowsPerPage = parseInt(searchParams.get('rlimit') || '10', 10);
 
@@ -175,32 +176,26 @@ export default function UsersPageView({
 
                 {activeTab === 'users' && (
                     <div className="space-y-4">
-                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                            <div className="flex-1 w-full transition-all">
-                                <UsersFilter
-                                    searchTerm={userSearchTerm}
-                                    onSearchChange={(v) => {
-                                        // Update URL query directly for filters... maybe debounce search
-                                        updateQuery({ search: v || null, page: '1' });
-                                    }}
-                                    roleFilter={roleFilter}
-                                    onRoleChange={(v) => updateQuery({ role: v === 'all' ? null : v, page: '1' })}
-                                    availableRoles={allRoles.map(r => ({ id: r.RoleID, name: r.RoleName }))}
-                                    statusFilter={statusFilter}
-                                    onStatusChange={(v) => updateQuery({ status: v === 'all' ? null : v, page: '1' })}
-                                />
-                            </div>
+                        <UsersFilter
+                            searchTerm={userSearchTerm}
+                            onSearchChange={(v) => {
+                                updateQuery({ search: v || null, page: '1' });
+                            }}
+                            roleFilter={roleFilter}
+                            onRoleChange={(v) => updateQuery({ role: v === 'all' ? null : v, page: '1' })}
+                            availableRoles={allRoles.map(r => ({ id: r.RoleID, name: r.RoleName }))}
+                            statusFilter={statusFilter}
+                            onStatusChange={(v) => updateQuery({ status: v === 'all' ? null : v, page: '1' })}
+                        >
                             {perms?.CanAdd && (
-                                <div className="w-full xl:w-auto flex justify-end shrink-0">
-                                    <button
-                                        onClick={handleAddUser}
-                                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
-                                    >
-                                        <Plus className="w-4 h-4" /> Add User
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={handleAddUser}
+                                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                >
+                                    <Plus className="w-4 h-4" /> Add User
+                                </button>
                             )}
-                        </div>
+                        </UsersFilter>
 
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                             <div className="overflow-x-auto">
@@ -340,31 +335,45 @@ export default function UsersPageView({
 
                 {activeTab === 'roles' && (
                     <div className="space-y-4">
-                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                            <div className="flex-1 w-full bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
-                                <div className="relative w-full max-w-md">
+                        <div className="bg-white py-2 px-4 rounded-xl shadow-sm border border-gray-200 w-full hover:border-gray-300 transition-colors">
+                            <div className="flex flex-col sm:flex-row gap-3 items-center">
+                                <div className="relative flex-1 w-full">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <Search className="h-4 w-4 text-gray-400" />
                                     </div>
                                     <input
                                         type="text"
                                         placeholder="Search roles..."
-                                        className="block w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
+                                        className="block w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl focus:ring-primary focus:border-primary focus:outline-none transition-colors shadow-sm"
                                         value={roleSearchTerm}
                                         onChange={(e) => updateQuery({ rsearch: e.target.value || null, rpage: '1' })}
                                     />
                                 </div>
-                            </div>
-                            {perms?.CanAdd && (
-                                <div className="w-full xl:w-auto flex justify-end shrink-0">
-                                    <button
-                                        onClick={handleAddRole}
-                                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
-                                    >
-                                        <Plus className="w-4 h-4" /> Add Role
-                                    </button>
+                                <div className="w-full sm:w-52">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: 'all', name: 'All Statuses' },
+                                            { id: 'active', name: 'Active' },
+                                            { id: 'inactive', name: 'Inactive' }
+                                        ]}
+                                        value={roleStatusFilter}
+                                        onChange={(v) => updateQuery({ rstatus: v === 'all' ? null : v, rpage: '1' })}
+                                        placeholder="Select Status"
+                                        displayKey="name"
+                                        valueKey="id"
+                                    />
                                 </div>
-                            )}
+                                {perms?.CanAdd && (
+                                    <div className="w-full sm:w-auto flex justify-end shrink-0 ml-auto">
+                                        <button
+                                            onClick={handleAddRole}
+                                            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:outline-none transition-all active:scale-[0.98] text-sm whitespace-nowrap shadow-sm"
+                                        >
+                                            <Plus className="w-4 h-4" /> Add Role
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">

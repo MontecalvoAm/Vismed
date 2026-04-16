@@ -192,7 +192,7 @@ const AuditLogsPrintRenderer = forwardRef<HTMLDivElement, AuditLogsPrintRenderer
                                         <ul style={{ paddingLeft: '14px', margin: 0, listStyleType: 'disc' }}>
                                             <li>This historical log report is generated strictly for internal monitoring and auditing.</li>
                                             <li>Values shown reflect the precise quantity modifications made to external tracking records.</li>
-                                            <li>For any discrepancies or corrections, please contact the IT Administration or Finance Department.</li>
+                                            <li>For any discrepancies or corrections, please contact the IT Administration.</li>
                                             <li>This generated log document does NOT constitute a confirmed medical appointment or prescription.</li>
                                         </ul>
                                     </div>
@@ -210,8 +210,8 @@ const AuditLogsPrintRenderer = forwardRef<HTMLDivElement, AuditLogsPrintRenderer
                                         visibility: isLastPage ? 'visible' : 'hidden'
                                     }}>
                                         {[
-                                            { main: preparedBy || 'System Generated', sub: 'Billing & Accounts' },
-                                            { main: 'Verified By', sub: 'Finance Department' },
+                                            { main: preparedBy || 'System Generated', sub: 'Prepared By:' },
+                                            { main: 'Verified By', sub: '' },
                                             { main: patientName || 'Patient', sub: 'Patient Signature' },
                                         ].map(({ main, sub }, i) => (
                                             <div key={i}>

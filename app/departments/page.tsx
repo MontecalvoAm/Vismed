@@ -26,7 +26,7 @@ export default async function DepartmentsPage(props: {
 
     const departments = await prisma.m_Department.findMany({
         where: { IsDeleted: false },
-        orderBy: { SortOrder: 'asc' }
+        orderBy: { DepartmentName: 'asc' }
     });
 
     const allDepartments = departments.map(d => ({

@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ConfirmProvider } from '@/context/ConfirmContext';
+import { LoadingProvider } from '@/context/LoadingContext';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { getServerUser } from '@/lib/getServerUser';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -33,9 +35,14 @@ export default async function RootLayout({
                 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
             </head>
             <body className={`${inter.variable} font-sans`}>
-                <ConfirmProvider>
-                    <AuthProvider initialUser={initialUser}>{children}</AuthProvider>
-                </ConfirmProvider>
+                <LoadingProvider>
+                    <ConfirmProvider>
+                        <AuthProvider initialUser={initialUser}>
+                            {children}
+                            <LoadingOverlay />
+                        </AuthProvider>
+                    </ConfirmProvider>
+                </LoadingProvider>
             </body>
         </html>
     );

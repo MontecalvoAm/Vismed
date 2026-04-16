@@ -2,9 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { QuotationRecord, deleteQuotation } from '@/lib/firestore/quotations';
-import { GuarantorRecord } from '@/lib/firestore/guarantors';
-import { createAuditLog } from '@/lib/firestore/audit';
+import { deleteQuotationAction, bulkDeleteQuotationsAction } from '@/app/actions/quotationActions';
 import ReportsFilter from '@/components/reports/ReportsFilter';
 import ReportsTable from '@/components/reports/ReportsTable';
 import SidebarLayout from '@/components/layout/SidebarLayout';
@@ -62,43 +60,25 @@ export default function ReportsPageView({
 
     const handleDeleteQuotation = async (id: string) => {
         try {
-            const qToDel = paginatedQuotations.find(q => q.id === id);
-            await deleteQuotation(id);
-            if (qToDel) {
-                await createAuditLog({
-                    Action: 'Deleted Quotation',
-                    Module: 'Quotation',
-                    RecordID: id,
-                    Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
-                });
-            }
+            const res = await deleteQuotationAction(id);
+            if (!res.success) throw new Error(res.error);
             router.refresh();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Quotation successfully deleted.' });
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error deleting:', err);
-            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete quotation.' });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: err.message || 'Failed to delete quotation.' });
         }
     };
 
     const handleBulkDeleteQuotation = async (ids: string[]) => {
         try {
-            await Promise.all(ids.map(async (id) => {
-                const qToDel = paginatedQuotations.find(q => q.id === id); // May not find if not on current page, but acceptable
-                await deleteQuotation(id);
-                if (qToDel) {
-                    await createAuditLog({
-                        Action: 'Deleted Quotation (Bulk)',
-                        Module: 'Quotation',
-                        RecordID: id,
-                        Description: `Deleted Quotation No: ${qToDel.DocumentNo || qToDel.id}`
-                    });
-                }
-            }));
+            const res = await bulkDeleteQuotationsAction(ids);
+            if (!res.success) throw new Error(res.error);
             router.refresh();
             setFeedback({ isOpen: true, type: 'success', title: 'Deleted', message: 'Selected quotations successfully deleted.' });
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error bulk deleting:', err);
-            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete some or all selected quotations.' });
+            setFeedback({ isOpen: true, type: 'error', title: 'Error', message: err.message || 'Failed to delete some or all selected quotations.' });
         }
     };
 

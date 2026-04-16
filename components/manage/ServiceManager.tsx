@@ -16,7 +16,7 @@ import AccessDenied from '@/components/AccessDenied';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 
 const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-const EMPTY_FORM = { ServiceName: '', DepartmentID: '', Price: 0, Unit: 'per session', Description: '' };
+const EMPTY_FORM = { ServiceName: '', DepartmentID: '', Price: '' as string | number, Unit: 'per session', Description: '' };
 
 interface ServiceManagerProps {
     paginatedServices: Service[];
@@ -90,7 +90,13 @@ export default function ServiceManager({
     const openAdd = () => { setEditTarget(null); setForm(EMPTY_FORM); setModalOpen(true); };
     const openEdit = (s: Service) => {
         setEditTarget(s);
-        setForm({ ServiceName: s.ServiceName, DepartmentID: s.DepartmentID, Price: s.Price, Unit: s.Unit, Description: s.Description });
+        setForm({ 
+            ServiceName: s.ServiceName, 
+            DepartmentID: s.DepartmentID, 
+            Price: String(s.Price), 
+            Unit: s.Unit, 
+            Description: s.Description 
+        });
         setModalOpen(true);
     };
 
@@ -109,10 +115,11 @@ export default function ServiceManager({
         setSaving(true);
         try {
             const by = `${user?.FirstName} ${user?.LastName}`;
+            const priceValue = parseFloat(String(form.Price)) || 0;
             if (editTarget) {
-                await updateService(editTarget.ServiceID, { ...form, Price: Number(form.Price) }, by);
+                await updateService(editTarget.ServiceID, { ...form, Price: priceValue }, by);
             } else {
-                await addService({ ...form, Price: Number(form.Price), IsActive: true }, by);
+                await addService({ ...form, Price: priceValue, IsActive: true }, by);
             }
             setModalOpen(false);
             setFeedback({ isOpen: true, type: 'success', title: 'Success', message: editTarget ? 'Service updated successfully.' : 'Service added successfully.' });
@@ -573,7 +580,15 @@ export default function ServiceManager({
                     <div className="flex gap-3">
                         <div className="space-y-1 flex-1">
                             <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Price (₱)</label>
-                            <input type="number" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40" value={form.Price} onChange={e => setForm(f => ({ ...f, Price: parseFloat(e.target.value) || 0 }))} required min={0} />
+                            <input 
+                                type="number" 
+                                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40 no-spinner" 
+                                value={form.Price} 
+                                onChange={e => setForm(f => ({ ...f, Price: e.target.value }))} 
+                                required 
+                                min={0}
+                                step="any"
+                            />
                         </div>
                         <div className="space-y-1 flex-1">
                             <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Unit</label>

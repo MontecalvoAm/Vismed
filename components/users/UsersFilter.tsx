@@ -9,16 +9,18 @@ interface UsersFilterProps {
     availableRoles: { id: string; name: string }[];
     statusFilter: string;
     onStatusChange: (val: string) => void;
+    children?: React.ReactNode;
 }
 
 export default function UsersFilter({
     searchTerm, onSearchChange,
     roleFilter, onRoleChange,
     availableRoles,
-    statusFilter, onStatusChange
+    statusFilter, onStatusChange,
+    children
 }: UsersFilterProps) {
     return (
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200 w-full hover:border-gray-300 transition-colors">
+        <div className="bg-white py-2 px-4 rounded-xl shadow-sm border border-gray-200 w-full hover:border-gray-300 transition-colors">
             <div className="flex flex-col sm:flex-row gap-3 items-center">
                 <div className="relative flex-1 w-full">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -26,7 +28,7 @@ export default function UsersFilter({
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none transition-colors"
+                        className="block w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl focus:ring-primary focus:border-primary focus:outline-none transition-colors shadow-sm"
                         placeholder="Search name or email..."
                         value={searchTerm}
                         onChange={(e) => onSearchChange(e.target.value)}
@@ -59,6 +61,11 @@ export default function UsersFilter({
                         valueKey="id"
                     />
                 </div>
+                {children && (
+                    <div className="w-full sm:w-auto flex justify-end shrink-0 ml-auto">
+                        {children}
+                    </div>
+                )}
             </div>
         </div>
     );
