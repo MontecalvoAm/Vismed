@@ -168,7 +168,7 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
     }
 
     return (
-        <div className="min-h-screen relative bg-brand-light-grey/20 text-slate-900 flex font-sans selection:bg-brand-lime-green/20">
+        <div className="min-h-screen relative bg-brand-light-grey/20 text-slate-900 flex font-sans">
             {/* Global Background Logo Watermark */}
             <div className="fixed inset-0 -z-10 pointer-events-none flex items-center justify-center overflow-hidden opacity-[0.15] md:pl-64">
                 <Image src="/VisayasMedical.png" alt="Background Logo Watermark" width={600} height={600} className="object-contain" priority />

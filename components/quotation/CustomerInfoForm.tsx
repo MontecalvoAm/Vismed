@@ -170,7 +170,20 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                                             onChange({ ...data, guarantorId: res.id, guarantorName: trimmed });
                                             setFeedback({ isOpen: true, type: 'success', title: 'Created', message: `Guarantor '${trimmed}' added successfully.` });
                                         } else {
-                                            throw new Error(res.error);
+                                            // If creation fails (e.g., Permission Denied), we still allow the user to use the name for this quotation
+                                            onChange({ ...data, guarantorId: '', guarantorName: trimmed });
+                                            
+                                            // Handle feedback based on error type
+                                            if (res.error === 'Permission Denied') {
+                                                console.warn('User lacks permission to add to master guarantor list. Using as one-time name.');
+                                            } else {
+                                                setFeedback({ 
+                                                    isOpen: true, 
+                                                    type: 'error', 
+                                                    title: 'Creation Failed', 
+                                                    message: res.error || 'Could not save guarantor to master list.' 
+                                                });
+                                            }
                                         }
                                     } catch (err) {
                                         console.error('Auto-create guarantor failed:', err);

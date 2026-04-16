@@ -132,8 +132,8 @@ export default function SettingsClient({
             {/* Header Title */}
             <div className="mb-6 sm:mb-8">
                 <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                    <div className="p-2.5 bg-brand-light-grey/30 rounded-xl">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
+                    <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
                     </div>
                     Account Settings
                 </h1>
@@ -159,7 +159,7 @@ export default function SettingsClient({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                     {/* Profile Update Form */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-brand-primary"></div>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-primary"></div>
                         <h2 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
                             <UserIcon className="w-5 h-5 text-slate-400" /> Profile Details
                         </h2>
@@ -206,7 +206,7 @@ export default function SettingsClient({
 
                     {/* Password Update Form */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 to-brand-bright-red"></div>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
                         <h2 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
                             <Lock className="w-5 h-5 text-slate-400" /> Change Password
                         </h2>
@@ -290,19 +290,19 @@ export default function SettingsClient({
                 </div>
 
                 {/* Form Action Area */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 pb-2">
-                    <p className="text-sm text-slate-500 font-medium text-center sm:text-left">
+                <div className="flex flex-col items-center gap-4 pt-6 mt-4 pb-2 border-t border-slate-100">
+                    <p className="text-sm text-slate-500 font-medium text-center">
                         Unsaved changes will be lost if you leave this page.
                     </p>
                     <button
                         type="submit"
                         disabled={isUpdating}
-                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-xl transition-colors shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed w-full sm:w-auto"
+                        className="flex items-center justify-center gap-2 px-8 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all shadow-md active:scale-[0.98] disabled:bg-slate-300 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                         {isUpdating ? (
                             <>
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Saving...
+                                Saving Changes...
                             </>
                         ) : (
                             <>

@@ -210,8 +210,8 @@ const GuarantorPdfRenderer = forwardRef<HTMLDivElement, GuarantorPdfRendererProp
                                         visibility: isLastPage ? 'visible' : 'hidden'
                                     }}>
                                         {[
-                                            { main: preparedBy || 'System Generated', sub: 'Prepared By' },
-                                            { main: 'Verified By', sub: 'Finance Department' },
+                                            { main: preparedBy || 'System Generated', sub: 'Prepared By:' },
+                                            { main: 'Verified By', sub: '' },
                                             { main: guarantor.Name, sub: 'Guarantor Signature' },
                                         ].map(({ main, sub }, i) => (
                                             <div key={i}>

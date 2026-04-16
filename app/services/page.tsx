@@ -29,7 +29,7 @@ export default async function ServicesPage(props: {
         prisma.m_Service.findMany({ where: { IsDeleted: false } }),
         prisma.m_Department.findMany({
             where: { IsDeleted: false },
-            orderBy: { SortOrder: 'asc' }
+            orderBy: { DepartmentName: 'asc' }
         })
     ]);
 

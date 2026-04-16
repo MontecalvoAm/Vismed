@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { QuotationRecord, updateQuotationStatus } from '@/lib/firestore/quotations';
-import { createAuditLog } from '@/lib/firestore/audit';
+import { updateQuotationStatusAction } from '@/app/actions/quotationActions';
+import { createAuditLog } from '@/app/actions/auditActions';
 import { Package, User, Activity, Edit3, FileSearch, Trash2, Pencil, ChevronDown, ChevronRight as ChevronRightIcon, ChevronLeft, Shield, Printer } from 'lucide-react';
 import { useConfirm } from '@/context/ConfirmContext';
 import { useAuth } from '@/context/AuthContext';
@@ -66,20 +66,8 @@ export default function ReportsTable({
     const handleStatusChange = async (id: string, newStatus: string) => {
         setStatusUpdatingId(id);
         try {
-            const q = data.find(r => r.id === id);
-            await updateQuotationStatus(id, newStatus as QuotationRecord['Status']);
-            await createAuditLog({
-                Action: 'Updated Status',
-                Module: 'Quotation',
-                RecordID: id,
-                Description: `Status changed to "${newStatus}" for Quotation No: ${q?.DocumentNo || id}`,
-                Metadata: {
-                    PatientName: q?.CustomerName ?? '',
-                    GuarantorName: q?.GuarantorName ?? '',
-                    OldStatus: q?.Status ?? '',
-                    NewStatus: newStatus,
-                }
-            });
+            const res = await updateQuotationStatusAction(id, newStatus);
+            if (!res.success) throw new Error(res.error);
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to update status:', error);

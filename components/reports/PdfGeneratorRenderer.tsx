@@ -275,8 +275,8 @@ const PdfGeneratorRenderer = forwardRef<HTMLDivElement, PdfGeneratorRendererProp
                                         visibility: isLastPage ? 'visible' : 'hidden'
                                     }}>
                                         {[
-                                            { main: preparedBy, sub: 'Billing & Accounts' },
-                                            { main: 'Verified By', sub: 'Finance Department' },
+                                            { main: preparedBy, sub: 'Prepared By:' },
+                                            { main: 'Verified By', sub: '' },
                                             { main: record.CustomerName || 'Patient', sub: 'Patient Signature' },
                                         ].map(({ main, sub }, i) => (
                                             <div key={i}>

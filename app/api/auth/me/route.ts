@@ -46,6 +46,10 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Account is inactive.' }, { status: 403 });
         }
 
+        if (user.Role && user.Role.IsActive === false) {
+            return NextResponse.json({ error: 'Your assigned role has been deactivated.' }, { status: 403 });
+        }
+
         // SINGLE-USER LOGIN CHECK: Verify Session ID
         if (user.CurrentSessionID && user.CurrentSessionID !== sessionId) {
             return NextResponse.json({

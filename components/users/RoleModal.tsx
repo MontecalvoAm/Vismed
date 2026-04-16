@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Shield, Settings, Info, Save, X } from 'lucide-react';
+import { Loader2, Shield, Settings, Info, Save, X, Layout, Box, Users, CreditCard, FileText, Activity, Database, Key, HelpCircle } from 'lucide-react';
 import { FeedbackModal } from '@/components/ui/FeedbackModal';
 import { ClearableInput } from '@/components/ui/ClearableInput';
 import { Switch } from '@/components/ui/Switch';
@@ -37,6 +37,18 @@ interface RoleModalProps {
     onSave: () => void;
     existingRoles?: RoleRecord[];
 }
+
+const ModuleIcon = ({ name, className }: { name: string; className?: string }) => {
+    const iconMap: Record<string, any> = {
+        Layout, Box, Users, Shield, ShieldCheck: Shield, CreditCard, FileText, Activity, Database, Key, HelpCircle, Settings
+    };
+    
+    // Normalize name (e.g. "Users" or "users")
+    const normalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+    const IconComponent = iconMap[normalizedName] || iconMap[name] || Box;
+    
+    return <IconComponent className={className} />;
+};
 
 export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles = [] }: RoleModalProps) {
     const [roleName, setRoleName] = useState('');
@@ -164,8 +176,8 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-white/20">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-300 md:pl-64">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white/50 shrink-0">
                     <div className="flex items-center gap-3">
@@ -268,8 +280,8 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
                                                 <div key={mod} className="group bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/20 transition-all duration-300">
                                                     <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/30 group-hover:bg-primary/5 transition-colors">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:border-primary/20 transition-all">
-                                                                <span className="text-xl">{moduleDef.Icon || '📦'}</span>
+                                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:border-primary/20 transition-all text-primary">
+                                                                <ModuleIcon name={moduleDef.Icon || moduleDef.ModuleName} className="w-5 h-5" />
                                                             </div>
                                                             <div>
                                                                 <h4 className="font-bold text-slate-900 leading-tight">{moduleDef.Label}</h4>
@@ -320,7 +332,7 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
                 </div>
 
                 {/* Footer Actions */}
-                <div className="px-8 py-5 flex justify-between items-center border-t border-slate-100 bg-slate-50/80 shrink-0">
+                <div className="px-8 py-5 flex justify-end items-center gap-3 border-t border-slate-100 bg-slate-50/80 shrink-0">
                     <button
                         type="button"
                         onClick={onClose}
@@ -329,21 +341,19 @@ export default function RoleModal({ isOpen, onClose, role, onSave, existingRoles
                     >
                         Discard Changes
                     </button>
-                    <div className="flex gap-3">
-                        <button
-                            type="submit"
-                            form="role-form"
-                            disabled={saving || loading}
-                            className="btn-primary min-w-[140px] gap-2 py-6 rounded-xl"
-                        >
-                            {saving ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Save className="w-4 h-4" />
-                            )}
-                            <span className="font-bold">{saving ? 'Processing...' : role ? 'Save Changes' : 'Create Role'}</span>
-                        </button>
-                    </div>
+                    <button
+                        type="submit"
+                        form="role-form"
+                        disabled={saving || loading}
+                        className="btn-primary min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-6 rounded-xl h-11"
+                    >
+                        {saving ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Save className="w-4 h-4" />
+                        )}
+                        <span className="font-bold">{saving ? 'Processing...' : role ? 'Save Changes' : 'Create Role'}</span>
+                    </button>
                 </div>
             </div>
 

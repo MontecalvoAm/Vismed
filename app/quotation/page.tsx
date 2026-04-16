@@ -17,23 +17,27 @@ export default async function QuotationPage() {
         );
     }
 
-    // Fetch initial data on the server
+    // Fetch initial data on the server with optimized selection
+    // This reduces the data transferred from DB and to the browser
     const [departments, services, guarantors] = await Promise.all([
         prisma.m_Department.findMany({
             where: { IsActive: true, IsDeleted: false } as any,
-            orderBy: { SortOrder: 'asc' }
+            orderBy: { DepartmentName: 'asc' },
+            select: { DepartmentID: true, DepartmentName: true, Icon: true, CreatedAt: true }
         }),
         prisma.m_Service.findMany({
-            where: { IsActive: true, IsDeleted: false } as any
+            where: { IsActive: true, IsDeleted: false } as any,
+            select: { ServiceID: true, DepartmentID: true, ServiceName: true, Price: true, Unit: true, CreatedAt: true }
         }),
         (prisma as any).t_Guarantor.findMany({
-            where: { IsDeleted: false } as any
+            where: { IsDeleted: false } as any,
+            select: { GuarantorID: true, Name: true, DiscountAmount: true, DiscountPercentage: true, CreatedAt: true, UpdatedAt: true }
         }),
     ]);
 
     const initialDepartments = departments.map(d => ({
         ...d,
-        id: d.DepartmentID, // For compatibility with client components expecting 'id'
+        id: d.DepartmentID,
         CreatedAt: d.CreatedAt.toISOString(),
     }));
 

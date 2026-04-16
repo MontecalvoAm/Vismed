@@ -27,7 +27,7 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground;
+    @apply bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     line-height: 1.6;
     letter-spacing: -0.011em;
@@ -54,5 +54,15 @@
 
   .btn-outline {
     @apply btn-base border-2 border-primary/20 bg-transparent text-primary hover:bg-primary/5 hover:border-primary/40;
+  }
+
+  /* Hide arrows in number input */
+  .no-spinner::-webkit-inner-spin-button,
+  .no-spinner::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spinner {
+    -moz-appearance: textfield;
   }
 }

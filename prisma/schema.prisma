@@ -77,6 +77,8 @@ model m_Service {
   Department   m_Department @relation(fields: [DepartmentID], references: [DepartmentID], map: "M_Service_DepartmentID_fkey")
 
   @@index([DepartmentID], map: "M_Service_DepartmentID_fkey")
+  @@index([IsDeleted, ServiceName], map: "M_Service_IsDeleted_ServiceName_idx")
+  @@index([ServiceName], map: "M_Service_ServiceName_idx")
   @@map("m_service")
 }
 
@@ -145,6 +147,7 @@ model t_AuditLog {
   @@index([Action], map: "T_AuditLog_Action_idx")
   @@index([CreatedAt], map: "T_AuditLog_CreatedAt_idx")
   @@index([UserID], map: "T_AuditLog_UserID_idx")
+  @@index([CreatedAt, Action], map: "T_AuditLog_CreatedAt_Action_idx")
   @@map("t_auditlog")
 }
 
@@ -197,6 +200,11 @@ model t_Quotation {
   UpdatedBy          String?           @db.VarChar(36)
   Items              t_QuotationItem[]
 
+  @@index([IsDeleted, CreatedAt], map: "T_Quotation_IsDeleted_CreatedAt_idx")
+  @@index([Status, IsDeleted], map: "T_Quotation_Status_IsDeleted_idx")
+  @@index([CustomerFirstName, CustomerLastName], map: "T_Quotation_CustomerName_idx")
+  @@index([DocumentNo], map: "T_Quotation_DocumentNo_idx")
+  @@index([GuarantorName], map: "T_Quotation_GuarantorName_idx")
   @@map("t_quotation")
 }
 
