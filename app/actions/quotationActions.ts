@@ -156,3 +156,35 @@ export async function bulkDeleteQuotationsAction(ids: string[]) {
     }
 }
 
+export async function updateQuotationStatusAction(id: string, newStatus: string) {
+    try {
+        const user = await getServerUser() as any;
+        if (!user) throw new Error("Unauthorized");
+
+        // Check if user has permission to edit reports/quotations
+        if (!user.Permissions?.Reports?.CanEdit) throw new Error("Permission Denied");
+
+        await (prisma as any).t_Quotation.update({
+            where: { QuotationID: id },
+            data: { 
+                Status: newStatus,
+                UpdatedBy: user.UserID,
+                UpdatedAt: new Date()
+            }
+        });
+
+        await createAuditLog({
+            Action: 'UPDATE_QUOTATION_STATUS',
+            Target: id,
+            Details: `Updated status to: ${newStatus}`,
+            UserID: user.UserID
+        });
+
+        revalidatePath('/reports');
+        return { success: true };
+    } catch (e: any) {
+        console.error("Action error updating quotation status:", e);
+        return { success: false, error: e.message };
+    }
+}
+
