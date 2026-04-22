@@ -34,7 +34,12 @@ export async function GET(req: NextRequest) {
                         Permissions: true
                     }
                 },
-                Overrides: true
+                Overrides: true,
+                Department: {
+                    select: {
+                        DepartmentName: true
+                    }
+                }
             } as any
         });
 
@@ -107,6 +112,8 @@ export async function GET(req: NextRequest) {
             LastName: user.LastName,
             RoleID: user.RoleID,
             RoleName: user.Role?.RoleName || 'Unknown',
+            DepartmentID: user.DepartmentID,
+            DepartmentName: user.Department?.DepartmentName,
             Permissions: resolved,
         };
 

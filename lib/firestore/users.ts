@@ -9,6 +9,8 @@ export interface UserRecord {
     FirstName: string;
     LastName: string;
     RoleID: string;
+    DepartmentID?: string;
+    Department?: any;
     IsActive: boolean;
     IsDeleted?: boolean;
     CreatedAt?: any;
