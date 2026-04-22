@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rateLimit';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { invalidatePermCache } from '@/lib/permCache';
 
 // Session durations
 const SESSION_DURATION = {
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
                 where: { UserID: user.UserID },
                 data: { CurrentSessionID: sessionId }
             });
+
+            // Clear permission cache for this user to ensure fresh data on dashboard load
+            invalidatePermCache(user.UserID);
 
             // Audit Log
             await prisma.t_AuditLog.create({
