@@ -207,6 +207,7 @@ export default function UsersPageView({
                                             <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Name</th>
                                             <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
                                             <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
+                                            <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Department</th>
                                             <th className="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Status</th>
                                             {(perms?.CanEdit || perms?.CanDelete) && (
                                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 tracking-wider">Actions</th>
@@ -216,7 +217,7 @@ export default function UsersPageView({
                                     <tbody className="bg-white divide-y divide-gray-100">
                                         {paginatedUsers.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                                                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                                                     No users match the selected filters.
                                                 </td>
                                             </tr>
@@ -238,6 +239,11 @@ export default function UsersPageView({
                                                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                                                             <Shield className="w-3 h-3" />
                                                             {getRoleName(user.RoleID)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${user.Department?.DepartmentName ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                            {user.Department?.DepartmentName || (getRoleName(user.RoleID) === 'Super Admin' ? 'Management' : 'None')}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">

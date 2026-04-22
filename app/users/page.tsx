@@ -78,7 +78,10 @@ export default async function UsersPage(props: {
         }
 
         const users = await prisma.m_User.findMany({
-            where: userWhere
+            where: userWhere,
+            include: {
+                Department: true
+            }
         });
 
         initialUsers = users.map(u => ({
