@@ -201,7 +201,7 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                                 <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg ring-1 ring-black/5">
                                     <li
                                         className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer font-medium"
-                                        onClick={() => {
+                                        onMouseDown={() => {
                                             setGuarantorSearch('');
                                             onChange({ ...data, guarantorId: '', guarantorName: '' });
                                             setIsGuarantorOpen(false);
@@ -213,7 +213,7 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                                         <li
                                             key={g.id}
                                             className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary cursor-pointer border-t border-slate-100 transition-colors"
-                                            onClick={() => {
+                                            onMouseDown={() => {
                                                 setGuarantorSearch(g.Name);
                                                 onChange({ ...data, guarantorId: g.id, guarantorName: g.Name });
                                                 setIsGuarantorOpen(false);

@@ -11,8 +11,11 @@ import { paginate } from '@/lib/pagination';
 const MODULE_NAME = 'Archive';
 
 export async function GET(req: NextRequest) {
-    const { error } = await requireAuth(req, MODULE_NAME, 'CanView');
+    const { user: authUser, error } = await requireAuth(req, MODULE_NAME, 'CanView');
     if (error) return error;
+
+    const isSuperAdmin = authUser?.RoleName === 'Super Admin';
+    const userDeptId = authUser?.DepartmentID;
 
     const { searchParams } = new URL(req.url);
     const tab = searchParams.get('tab') || 'guarantors';
@@ -58,8 +61,17 @@ export async function GET(req: NextRequest) {
                 break;
             }
             case 'services': {
+                const serviceWhere: any = { IsDeleted: true };
+                if (!isSuperAdmin) {
+                    if (userDeptId) {
+                        serviceWhere.DepartmentID = userDeptId;
+                    } else {
+                        serviceWhere.DepartmentID = 'RESTRICTED_NONE';
+                    }
+                }
+
                 result = await paginate(prisma.m_Service, { page, pageSize, search }, { 
-                    IsDeleted: true,
+                    ...serviceWhere,
                     OR: search ? [
                         { ServiceName: { contains: search } },
                         { Description: { contains: search } }

@@ -289,7 +289,9 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="text-[13px] font-semibold truncate leading-tight text-white mb-0.5">{user.FirstName} {user.LastName}</div>
-                                <div className="text-[11px] font-medium text-brand-lime-green uppercase tracking-wider truncate">{user.RoleName}</div>
+                                <div className="text-[11px] font-medium text-brand-lime-green uppercase tracking-wider truncate">
+                                    {(user.RoleName === 'Super Admin' || !user.DepartmentName) ? user.RoleName : user.DepartmentName}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -341,7 +343,7 @@ export default function SidebarLayout({ children, pageTitle = 'Quotation System'
                                             {user?.FirstName || ''} {user?.LastName || ''}
                                         </p>
                                         <p className="text-xs text-slate-500 truncate mt-0.5">
-                                            {user?.RoleName || 'User'}
+                                            {(user?.RoleName === 'Super Admin' || !user?.DepartmentName) ? (user?.RoleName || 'User') : user?.DepartmentName}
                                         </p>
                                     </div>
                                     <div className="p-1.5 space-y-1">

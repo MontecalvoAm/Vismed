@@ -25,8 +25,27 @@ export default async function ServicesPage(props: {
     const currentPage = parseInt((searchParams.page as string) || '1', 10);
     const rowsPerPage = parseInt((searchParams.limit as string) || '10', 10);
 
+    // Base where clause
+    const baseWhere: any = { IsDeleted: false };
+    
+    // Auth-based Department Filter
+    const isSuperAdmin = serverUser.RoleName === 'Super Admin';
+    const userDeptId = serverUser.DepartmentID;
+
+    if (!isSuperAdmin) {
+        if (userDeptId) {
+            baseWhere.DepartmentID = userDeptId;
+        } else {
+            // No department assigned -> see nothing
+            baseWhere.DepartmentID = 'RESTRICTED_NONE'; 
+        }
+    }
+
     const [services, departments] = await Promise.all([
-        prisma.m_Service.findMany({ where: { IsDeleted: false } }),
+        prisma.m_Service.findMany({ 
+            where: baseWhere,
+            orderBy: { ServiceName: 'asc' }
+        }),
         prisma.m_Department.findMany({
             where: { IsDeleted: false },
             orderBy: { DepartmentName: 'asc' }
@@ -55,6 +74,8 @@ export default async function ServicesPage(props: {
 
     // Filter
     let filteredServices = allServices;
+    
+    // Client-side filter from dropdown (if Super Admin or if restricted users want to filter within their dept further)
     if (filterDeptId) {
         filteredServices = filteredServices.filter(s => s.DepartmentID === filterDeptId);
     }

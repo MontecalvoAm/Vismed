@@ -5,7 +5,8 @@
 //  Receives Departments and Services from Server 
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { Plus, Minus, X, AlertCircle } from 'lucide-react';
 import type { Department } from '@/lib/firestore/departments';
@@ -21,6 +22,14 @@ export default function ServiceSelector({ items, onChange, onNext, onBack, initi
     const [selectedServiceId, setSelectedServiceId] = useState('');
     const [sessions, setSessions] = useState(1);
     const [error, setError] = useState('');
+    const { user } = useAuth();
+
+    // Auto-select department if restricted
+    useEffect(() => {
+        if (user && user.RoleName !== 'Super Admin' && user.DepartmentID && !selectedDeptId) {
+            setSelectedDeptId(user.DepartmentID);
+        }
+    }, [user, selectedDeptId]);
 
 
     const selectedDept = departments.find((d) => d.DepartmentID === selectedDeptId);
@@ -94,26 +103,39 @@ export default function ServiceSelector({ items, onChange, onNext, onBack, initi
                     </h3>
 
                     <div className="space-y-5">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-slate-700">Department</label>
-                            <SearchableSelect
-                                options={departments}
-                                value={selectedDeptId}
-                                onChange={handleDeptChange}
-                                placeholder="Search department..."
-                                valueKey="DepartmentID"
-                                displayKey="DepartmentName"
-                                renderOption={(d: Department) => (
-                                    <div className="flex items-center space-x-3">
-                                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500">{d.Icon}</span>
-                                        <div className="flex flex-col">
-                                            <strong className="text-slate-800 font-medium">{d.DepartmentName}</strong>
-                                            <small className="text-slate-500 text-xs">{d.Description}</small>
-                                        </div>
+                        {(!user?.RoleName?.includes('Super Admin') && user?.DepartmentID) ? (
+                            <div className="space-y-1.5 pb-2">
+                                <label className="text-sm font-medium text-slate-700">Department</label>
+                                <div className="flex items-center space-x-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-slate-500 shadow-sm border border-slate-100">{selectedDept?.Icon || '🏥'}</span>
+                                    <div className="flex flex-col">
+                                        <strong className="text-brand-dark-blue font-bold">{selectedDept?.DepartmentName || 'Loading...'}</strong>
+                                        <small className="text-slate-500 text-xs">Your assigned department</small>
                                     </div>
-                                )}
-                            />
-                        </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium text-slate-700">Department</label>
+                                <SearchableSelect
+                                    options={departments}
+                                    value={selectedDeptId}
+                                    onChange={handleDeptChange}
+                                    placeholder="Search department..."
+                                    valueKey="DepartmentID"
+                                    displayKey="DepartmentName"
+                                    renderOption={(d: Department) => (
+                                        <div className="flex items-center space-x-3">
+                                            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500">{d.Icon}</span>
+                                            <div className="flex flex-col">
+                                                <strong className="text-slate-800 font-medium">{d.DepartmentName}</strong>
+                                                <small className="text-slate-500 text-xs">{d.Description}</small>
+                                            </div>
+                                        </div>
+                                    )}
+                                />
+                            </div>
+                        )}
 
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-slate-700">Service</label>
@@ -293,10 +315,7 @@ export default function ServiceSelector({ items, onChange, onNext, onBack, initi
                 </div>
 
                 {/* Navigation actions */}
-                <div className="flex items-center justify-between mt-6 relative z-10 bg-white/80 backdrop-blur p-4 rounded-xl shadow-sm border border-slate-200">
-                    <button type="button" className="px-5 py-2.5 flex items-center font-bold text-brand-muted-blue hover:text-brand-dark-blue hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200" onClick={onBack}>
-                        ← Back
-                    </button>
+                <div className="flex items-center justify-end mt-6 relative z-10 bg-white/80 backdrop-blur p-4 rounded-xl shadow-sm border border-slate-200">
                     <button
                         type="button"
                         className="px-6 py-2.5 flex items-center justify-center font-medium bg-brand-dark-blue text-white rounded-xl shadow-md transition-all hover:bg-brand-muted-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-dark-blue disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"

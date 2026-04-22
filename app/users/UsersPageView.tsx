@@ -29,6 +29,7 @@ interface UsersPageViewProps {
     roleTotalPages: number;
 
     allRoles: RoleRecord[];
+    allDepartments: any[];
     perms: any;
 }
 
@@ -41,6 +42,7 @@ export default function UsersPageView({
     filteredRolesCount,
     roleTotalPages,
     allRoles,
+    allDepartments,
     perms
 }: UsersPageViewProps) {
     const router = useRouter();
@@ -494,7 +496,7 @@ export default function UsersPageView({
                 )}
             </div>
 
-            <UserModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} user={selectedUser} onSave={() => router.refresh()} />
+            <UserModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} user={selectedUser} onSave={() => router.refresh()} allRoles={allRoles} allDepartments={allDepartments} />
             <UserOverrideModal isOpen={isOverrideModalOpen} onClose={() => setIsOverrideModalOpen(false)} user={selectedUser} />
             <RoleModal isOpen={isRoleModalOpen} onClose={() => setIsRoleModalOpen(false)} role={selectedRole} onSave={() => router.refresh()} existingRoles={allRoles} />
             <FeedbackModal isOpen={feedback.isOpen} type={feedback.type} title={feedback.title} message={feedback.message} onClose={() => setFeedback(f => ({ ...f, isOpen: false }))} />
