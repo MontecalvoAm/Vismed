@@ -27,6 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 FirstName: true,
                 LastName: true,
                 RoleID: true,
+                DepartmentID: true,
                 IsActive: true,
                 CreatedAt: true,
                 UpdatedAt: true,
@@ -50,13 +51,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     try {
         const resolvedParams = await params;
         const body = await req.json();
-        const { Email, FirstName, LastName, RoleID, IsActive, Password } = body;
+        const { Email, FirstName, LastName, RoleID, DepartmentID, IsActive, Password } = body;
 
         const updateData: any = {
             Email,
             FirstName,
             LastName,
             RoleID,
+            DepartmentID,
             IsActive: IsActive !== undefined ? Boolean(IsActive) : undefined,
         };
 

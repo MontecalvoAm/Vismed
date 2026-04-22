@@ -21,6 +21,7 @@ model m_Department {
   CreatedBy      String?     @db.VarChar(36)
   UpdatedBy      String?     @db.VarChar(36)
   Services       m_Service[]
+  Users          m_User[]
 
   @@map("m_department")
 }
@@ -90,6 +91,7 @@ model m_User {
   FirstName        String?           @db.VarChar(100)
   LastName         String?           @db.VarChar(100)
   RoleID           String?           @db.VarChar(36)
+  DepartmentID     String?           @db.VarChar(36)
   IsActive         Boolean           @default(true)
   IsDeleted        Boolean           @default(false)
   CurrentSessionID String?           @db.VarChar(255)
@@ -98,9 +100,11 @@ model m_User {
   CreatedBy        String?           @db.VarChar(36)
   UpdatedBy        String?           @db.VarChar(36)
   Role             m_Role?           @relation(fields: [RoleID], references: [RoleID], map: "M_User_RoleID_fkey")
+  Department       m_Department?     @relation(fields: [DepartmentID], references: [DepartmentID], map: "M_User_DepartmentID_fkey")
   Overrides        mT_UserOverride[]
 
   @@index([RoleID], map: "M_User_RoleID_fkey")
+  @@index([DepartmentID], map: "M_User_DepartmentID_fkey")
   @@map("m_user")
 }
 

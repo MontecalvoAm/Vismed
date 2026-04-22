@@ -16,6 +16,8 @@ interface AuthUser {
     LastName: string;
     RoleID: string;
     RoleName: string;
+    DepartmentID?: string;
+    DepartmentName?: string;
     Permissions: any; // Keep generic or import if needed
 }
 

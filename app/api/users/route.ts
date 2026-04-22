@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
                 FirstName: true,
                 LastName: true,
                 RoleID: true,
+                DepartmentID: true,
                 IsActive: true,
                 CreatedAt: true,
                 UpdatedAt: true,
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
 
         const body = await req.json();
         const sanitizedBody = sanitizeObject(body);
-        const { Email, FirstName, LastName, RoleID, IsActive, Password } = sanitizedBody;
+        const { Email, FirstName, LastName, RoleID, DepartmentID, IsActive, Password } = sanitizedBody;
 
         const requiredCheck = validateRequired(
             { Email, FirstName, LastName, Password },
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
                 FirstName: sanitizeString(FirstName as string),
                 LastName: sanitizeString(LastName as string),
                 RoleID: RoleID || undefined,
+                DepartmentID: DepartmentID || undefined,
                 IsActive: IsActive !== undefined ? Boolean(IsActive) : true,
                 Password: hashedPassword,
                 CreatedBy: authUser?.UserID,

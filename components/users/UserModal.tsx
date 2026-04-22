@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { UserRecord } from '@/lib/firestore/users';
 import { getRoles } from '@/lib/firestore/roles';
 import type { RoleRecord } from '@/components/users/RoleModal';
@@ -11,18 +12,21 @@ interface UserModalProps {
     onClose: () => void;
     user?: UserRecord | null;
     onSave: () => void;
+    allRoles: RoleRecord[];
+    allDepartments: any[];
 }
 
-export default function UserModal({ isOpen, onClose, user, onSave }: UserModalProps) {
+export default function UserModal({ isOpen, onClose, user, onSave, allRoles, allDepartments }: UserModalProps) {
     const [email, setEmail] = useState('');
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [role, setRole] = useState('');
+    const [departmentId, setDepartmentId] = useState('');
     const [isActive, setIsActive] = useState(true);
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [roles, setRoles] = useState<RoleRecord[]>([]);
     const [rolesLoading, setRolesLoading] = useState(false);
     const [feedback, setFeedback] = useState<{ isOpen: boolean; type: 'success' | 'error'; title: string; message: string }>({
         isOpen: false,
@@ -31,21 +35,12 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
         message: ''
     });
 
-    // Load active roles from Firestore directly (client SDK)
+    // Pre-select role if new user
     useEffect(() => {
-        if (!isOpen) return;
-        setRolesLoading(true);
-        getRoles()
-            .then((data) => {
-                const active = data.filter((r) => r.IsActive !== false) as RoleRecord[];
-                setRoles(active);
-                if (!user && active.length > 0) {
-                    setRole(active[0].RoleID);
-                }
-            })
-            .catch(console.error)
-            .finally(() => setRolesLoading(false));
-    }, [isOpen, user]);
+        if (isOpen && !user && allRoles.length > 0) {
+            setRole(allRoles[0].RoleID);
+        }
+    }, [isOpen, user, allRoles]);
 
     useEffect(() => {
         if (user) {
@@ -53,12 +48,14 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
             setFirstName(user.FirstName || '');
             setLastName(user.LastName || '');
             setRole(user.RoleID || '');
+            setDepartmentId(user.DepartmentID || '');
             setIsActive(user.IsActive !== false);
             setPassword('');
         } else {
             setEmail('');
             setFirstName('');
             setLastName('');
+            setDepartmentId('');
             setIsActive(true);
             setPassword('');
         }
@@ -86,8 +83,16 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
                 FirstName: firstName,
                 LastName: lastName,
                 RoleID: role,
+                DepartmentID: departmentId || null,
                 IsActive: isActive,
             };
+
+            // VALIDATION: Department is mandatory for non-Super Admin roles
+            const selectedRoleName = allRoles.find(r => r.RoleID === role)?.RoleName;
+            const isExemptEmail = email === 'aljon.montecalvo08@gmail.com';
+            if (selectedRoleName !== 'Super Admin' && !isExemptEmail && !departmentId) {
+                throw new Error('Please select a department for this user.');
+            }
 
             if (password) {
                 if (!isStrongPassword(password)) {
@@ -187,13 +192,25 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
                             Password{' '}
                             {user && <span className="text-gray-400 text-xs font-normal">(Leave blank to keep current)</span>}
                         </label>
-                        <input
-                            required={!user}
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                        />
+                        <div className="relative">
+                            <input
+                                required={!user}
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder={user ? 'Leave blank to keep current' : 'Enter strong password'}
+                                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
+                            />
+                            {password && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -208,10 +225,10 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
                             >
                                 {rolesLoading ? (
                                     <option value="">Loading roles...</option>
-                                ) : roles.length === 0 ? (
+                                ) : allRoles.length === 0 ? (
                                     <option value="">No roles available</option>
                                 ) : (
-                                    roles.map((r) => (
+                                    allRoles.map((r) => (
                                         <option key={r.RoleID} value={r.RoleID}>
                                             {r.RoleName}
                                         </option>
@@ -219,17 +236,32 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
                                 )}
                             </select>
                         </div>
-                        <div className="flex items-center mt-6">
-                            <label className="flex items-center cursor-pointer gap-2">
-                                <input
-                                    type="checkbox"
-                                    checked={isActive}
-                                    onChange={(e) => setIsActive(e.target.checked)}
-                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                                <span className="text-sm text-gray-700 font-medium">Active User</span>
-                            </label>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                            <select
+                                value={departmentId}
+                                onChange={(e) => setDepartmentId(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                                <option value="">Select Department...</option>
+                                {allDepartments.map((d) => (
+                                    <option key={d.DepartmentID} value={d.DepartmentID}>
+                                        {d.DepartmentName}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
+                    </div>
+                    <div className="flex items-center mt-2">
+                        <label className="flex items-center cursor-pointer gap-2">
+                            <input
+                                type="checkbox"
+                                checked={isActive}
+                                onChange={(e) => setIsActive(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <span className="text-sm text-gray-700 font-medium">Active User</span>
+                        </label>
                     </div>
 
                     <div className="pt-4 flex justify-end gap-2 border-t border-gray-100">

@@ -87,7 +87,14 @@ export default function ServiceManager({
 
     const deptName = (id: string) => serverAllDepartments.find(d => d.DepartmentID === id)?.DepartmentName ?? id;
 
-    const openAdd = () => { setEditTarget(null); setForm(EMPTY_FORM); setModalOpen(true); };
+    const openAdd = () => { 
+        setEditTarget(null); 
+        setForm({
+            ...EMPTY_FORM,
+            DepartmentID: (!user?.RoleName?.includes('Super Admin') && user?.DepartmentID) ? user.DepartmentID : ''
+        }); 
+        setModalOpen(true); 
+    };
     const openEdit = (s: Service) => {
         setEditTarget(s);
         setForm({ 
@@ -564,7 +571,13 @@ export default function ServiceManager({
                     {error && <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100"><AlertCircle className="w-4 h-4" />{error}</div>}
                     <div className="space-y-1">
                         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Department</label>
-                        <select className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40" value={form.DepartmentID} onChange={e => setForm(f => ({ ...f, DepartmentID: e.target.value }))} required>
+                        <select 
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:bg-slate-50 disabled:text-slate-400" 
+                            value={form.DepartmentID} 
+                            onChange={e => setForm(f => ({ ...f, DepartmentID: e.target.value }))} 
+                            required
+                            disabled={!user?.RoleName?.includes('Super Admin') && !!user?.DepartmentID}
+                        >
                             <option value="">Select a department...</option>
                             {serverAllDepartments.map(d => <option key={d.DepartmentID} value={d.DepartmentID}>{d.DepartmentName}</option>)}
                         </select>

@@ -47,11 +47,38 @@ export default async function UsersPage(props: {
         UpdatedAt: r.UpdatedAt.toISOString(),
     }));
 
+    // Fetch Departments (always needed for user modal)
+    const departments = await prisma.m_Department.findMany({
+        where: { IsActive: true, IsDeleted: false },
+        orderBy: { DepartmentName: 'asc' }
+    });
+
+    const allDepartments = departments.map(d => ({
+        ...d,
+        id: d.DepartmentID,
+        CreatedAt: d.CreatedAt.toISOString(),
+        UpdatedAt: d.UpdatedAt.toISOString(),
+    }));
+
     // Fetch Users (if users tab)
     let initialUsers: any[] = [];
     if (tab === 'users' || tab === undefined) {
+        // Auth-based Department Filter for User List
+        const userWhere: any = { IsDeleted: false };
+        const isSuperAdmin = serverUser.RoleName === 'Super Admin';
+        const userDeptId = serverUser.DepartmentID;
+
+        if (!isSuperAdmin) {
+            if (userDeptId) {
+                userWhere.DepartmentID = userDeptId;
+            } else {
+                // Restricted -> see nothing
+                userWhere.DepartmentID = 'RESTRICTED_NONE';
+            }
+        }
+
         const users = await prisma.m_User.findMany({
-            where: { IsDeleted: false }
+            where: userWhere
         });
 
         initialUsers = users.map(u => ({
@@ -113,6 +140,7 @@ export default async function UsersPage(props: {
             roleTotalPages={roleTotalPagesCalc}
 
             allRoles={allRoles as any}
+            allDepartments={allDepartments as any}
             perms={(serverUser as any)?.Permissions?.Users}
         />
     );

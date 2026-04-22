@@ -17,16 +17,33 @@ export default async function QuotationPage() {
         );
     }
 
-    // Fetch initial data on the server with optimized selection
-    // This reduces the data transferred from DB and to the browser
+    // Auth-based Department Filter
+    const isSuperAdmin = serverUser.RoleName === 'Super Admin';
+    const userDeptId = serverUser.DepartmentID;
+
+    // Build filters
+    const serviceWhere: any = { IsActive: true, IsDeleted: false };
+    const deptWhere: any = { IsActive: true, IsDeleted: false };
+
+    if (!isSuperAdmin) {
+        if (userDeptId) {
+            serviceWhere.DepartmentID = userDeptId;
+            deptWhere.DepartmentID = userDeptId;
+        } else {
+            // Restricted -> see nothing
+            serviceWhere.DepartmentID = 'RESTRICTED_NONE';
+            deptWhere.DepartmentID = 'RESTRICTED_NONE';
+        }
+    }
+
     const [departments, services, guarantors] = await Promise.all([
         prisma.m_Department.findMany({
-            where: { IsActive: true, IsDeleted: false } as any,
+            where: deptWhere as any,
             orderBy: { DepartmentName: 'asc' },
             select: { DepartmentID: true, DepartmentName: true, Icon: true, CreatedAt: true }
         }),
         prisma.m_Service.findMany({
-            where: { IsActive: true, IsDeleted: false } as any,
+            where: serviceWhere as any,
             select: { ServiceID: true, DepartmentID: true, ServiceName: true, Price: true, Unit: true, CreatedAt: true }
         }),
         (prisma as any).t_Guarantor.findMany({
