@@ -202,6 +202,7 @@ model t_Quotation {
   SessionType        String?           @db.VarChar(50)
   CreatedBy          String?           @db.VarChar(36)
   UpdatedBy          String?           @db.VarChar(36)
+  DepartmentID       String?           @db.VarChar(36)
   Items              t_QuotationItem[]
 
   @@index([IsDeleted, CreatedAt], map: "T_Quotation_IsDeleted_CreatedAt_idx")

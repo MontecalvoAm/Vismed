@@ -60,6 +60,29 @@ export default async function ReportsPage(props: {
     if (guarantorFilter !== 'all') {
         where.GuarantorName = guarantorFilter;
     }
+    
+    // Auth-based Department Filter
+    const isSuperAdmin = (serverUser as any)?.RoleName === 'Super Admin';
+    const userDeptId = (serverUser as any)?.DepartmentID;
+
+    if (!isSuperAdmin) {
+        if (userDeptId) {
+            // Filter by Dept OR their own old creations
+            where.OR = [
+                ...(where.OR || []),
+                { DepartmentID: userDeptId },
+                { 
+                    AND: [
+                        { DepartmentID: null },
+                        { CreatedBy: (serverUser as any).UserID }
+                    ]
+                }
+            ];
+        } else {
+            // No department and not admin -> restricted to only their own creations if any
+            where.CreatedBy = (serverUser as any).UserID || 'RESTRICTED_NONE';
+        }
+    }
 
     // Fetch Paginated Data & Stats in parallel
     const [paginatedResult, guarantors, stats] = await Promise.all([

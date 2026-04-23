@@ -119,8 +119,7 @@ const PdfGeneratorRenderer = forwardRef<HTMLDivElement, PdfGeneratorRendererProp
 
                                     {/* ── HEADER ── */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingBottom: '7mm', borderBottom: '2.5px solid #0056B3', marginBottom: '6mm', textAlign: 'center' }}>
-                                        {/* Smaller Header Logo */}
-                                        <img src="/VisayasMedical.png" alt="Logo" style={{ width: '64px', height: '64px', objectFit: 'contain', opacity: 0.9, marginBottom: '6px' }} />
+                                        {/* Header Logo removed for clean printed format */}
                                         <div>
                                             <div style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.4px', color: '#0056B3', textTransform: 'uppercase' }}>VisayasMed Hospital</div>
                                             <div style={{ fontSize: '8.5px', color: '#64748b', fontWeight: '600', letterSpacing: '1.2px', textTransform: 'uppercase', marginTop: '2px' }}>A MEMBER OF APPLEONE MEDICAL GROUP</div>
@@ -205,21 +204,23 @@ const PdfGeneratorRenderer = forwardRef<HTMLDivElement, PdfGeneratorRendererProp
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {Object.entries(pageGrouped).map(([, deptItems]) =>
-                                                    deptItems.map((item) => {
-                                                        const subtotal = item.Price * item.Quantity;
-                                                        return (
-                                                            <tr key={item.Id} style={{ background: item.rowNo % 2 === 0 ? '#f8fafc' : '#fff' }}>
-                                                                <td style={{ padding: '6px 9px', textAlign: 'center', color: '#94a3b8', borderBottom: '1px solid #f1f5f9', fontSize: '10px' }}>{item.rowNo}</td>
-                                                                <td style={{ padding: '6px 9px', color: '#334155', fontWeight: '600', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', fontSize: '10px' }}>{item.Department}</td>
-                                                                <td style={{ padding: '6px 9px', color: '#475569', borderBottom: '1px solid #f1f5f9', wordBreak: 'break-word', fontSize: '10px' }}>{item.Name}</td>
-                                                                <td style={{ padding: '6px 9px', textAlign: 'right', color: '#475569', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', fontSize: '10px' }}>{fmt(item.Price)}</td>
-                                                                <td style={{ padding: '6px 9px', textAlign: 'center', fontWeight: '600', borderBottom: '1px solid #f1f5f9', fontSize: '10px' }}>{item.Quantity}</td>
-                                                                <td style={{ padding: '6px 9px', textAlign: 'right', fontWeight: '700', color: '#0f172a', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', fontSize: '10.5px' }}>{fmt(subtotal)}</td>
-                                                            </tr>
-                                                        );
-                                                    })
-                                                )}
+                                                {Object.entries(pageGrouped).map(([deptName, deptItems]) => (
+                                                    <React.Fragment key={deptName}>
+                                                        {deptItems.map((item) => {
+                                                            const subtotal = item.Price * item.Quantity;
+                                                            return (
+                                                                <tr key={`${item.Id}-${item.rowNo}`} style={{ background: item.rowNo % 2 === 0 ? '#f8fafc' : '#fff' }}>
+                                                                    <td style={{ padding: '6px 9px', textAlign: 'center', color: '#94a3b8', borderBottom: '1px solid #f1f5f9', fontSize: '10px' }}>{item.rowNo}</td>
+                                                                    <td style={{ padding: '6px 9px', color: '#334155', fontWeight: '600', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', fontSize: '10px' }}>{item.Department}</td>
+                                                                    <td style={{ padding: '6px 9px', color: '#475569', borderBottom: '1px solid #f1f5f9', wordBreak: 'break-word', fontSize: '10px' }}>{item.Name}</td>
+                                                                    <td style={{ padding: '6px 9px', textAlign: 'right', color: '#475569', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', fontSize: '10px' }}>{fmt(item.Price)}</td>
+                                                                    <td style={{ padding: '6px 9px', textAlign: 'center', fontWeight: '600', borderBottom: '1px solid #f1f5f9', fontSize: '10px' }}>{item.Quantity}</td>
+                                                                    <td style={{ padding: '6px 9px', textAlign: 'right', fontWeight: '700', color: '#0f172a', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', fontSize: '10.5px' }}>{fmt(subtotal)}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))}
                                             </tbody>
                                         </table>
 
