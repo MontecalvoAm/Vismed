@@ -69,6 +69,7 @@ export default function LoginForm() {
                             onChange={(e) => setEmail(e.target.value)}
                             autoComplete="email"
                             required
+                            suppressHydrationWarning
                         />
                     </div>
                 </div>
@@ -88,12 +89,14 @@ export default function LoginForm() {
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
                             required
+                            suppressHydrationWarning
                         />
                         <button
                             type="button"
                             className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-white transition-colors focus:outline-none"
                             onClick={() => setShowPassword((s) => !s)}
                             aria-label="Toggle password visibility"
+                            suppressHydrationWarning
                         >
                             {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                         </button>
@@ -107,6 +110,7 @@ export default function LoginForm() {
                         className="h-4 w-4 rounded border-neutral-700 bg-neutral-900/50 text-accent focus:ring-accent focus:ring-offset-neutral-900"
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
+                        suppressHydrationWarning
                     />
                     <label htmlFor="remember-me" className="ml-2 text-sm text-neutral-400">
                         Remember me

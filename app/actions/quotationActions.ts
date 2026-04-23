@@ -69,6 +69,7 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
                     IsDeleted: false,
                     CreatedBy: user.UserID,
                     UpdatedBy: user.UserID,
+                    DepartmentID: user.DepartmentID,
                     CreatedAt: now,
                     UpdatedAt: now,
                     Items: Items && Items.length > 0 ? {

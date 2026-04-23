@@ -118,8 +118,8 @@ export default function PdfViewerModal({ isOpen, onClose, quotation }: PdfViewer
                 </div>
 
                 {/* PDF Canvas Container */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#ebeef2] relative z-10 custom-scrollbar flex justify-center">
-                    <div className="shadow-2xl rounded-lg overflow-hidden shrink-0 border border-slate-300">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#ebeef2] relative z-10 custom-scrollbar">
+                    <div className="mx-auto shadow-2xl rounded-lg overflow-hidden shrink-0 border border-slate-300 w-fit h-fit">
                         <PdfGeneratorRenderer
                             ref={pdfRef}
                             record={quotation}
