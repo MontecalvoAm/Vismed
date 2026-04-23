@@ -34,7 +34,7 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
         const { name, value } = e.target;
         
         // Fields that should be forced to uppercase
-        const uppercaseFields = ['firstName', 'middleName', 'lastName', 'address', 'notes'];
+        const uppercaseFields = ['firstName', 'middleName', 'lastName', 'notes'];
         const finalValue = uppercaseFields.includes(name) ? value.toUpperCase() : value;
 
         let updates = { [name]: finalValue };
@@ -55,7 +55,99 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
         <form className="space-y-8" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
 
-                {/* 1. Name Split fields */}
+                {/* 1. Guarantor Section (Priority) */}
+                <div className="md:col-span-2 space-y-1.5 relative">
+                    <label className="text-sm font-bold text-brand-dark-blue flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-brand-muted-blue" />
+                        Guarantor Company <span className="text-slate-400 font-normal">(Search or Add New)</span>
+                    </label>
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                            <Shield className="h-4 w-4" />
+                        </div>
+                        <input
+                            type="text"
+                            className={inputClasses}
+                            placeholder="Search & select guarantor..."
+                            value={guarantorSearch}
+                            onChange={(e) => {
+                                const val = e.target.value.toUpperCase();
+                                setGuarantorSearch(val);
+                                setIsGuarantorOpen(true);
+                                if (!val) {
+                                    onChange({ ...data, guarantorId: '', guarantorName: '' });
+                                }
+                            }}
+                            onFocus={() => setIsGuarantorOpen(true)}
+                            onBlur={async () => {
+                                await new Promise(r => setTimeout(r, 200));
+                                setIsGuarantorOpen(false);
+                                const trimmed = guarantorSearch.trim();
+                                if (!trimmed) return;
+                                if (data.guarantorName === trimmed) return;
+                                const existing = guarantors.find(g => g.Name.toLowerCase() === trimmed.toLowerCase());
+                                if (existing) {
+                                    setGuarantorSearch(existing.Name);
+                                    onChange({ ...data, guarantorId: existing.id, guarantorName: existing.Name });
+                                    return;
+                                }
+                                setIsCreatingGuarantor(true);
+                                try {
+                                    const res = await addGuarantorAction({ Name: trimmed });
+                                    if (res.success) {
+                                        const newGuarantor = { id: res.id, Name: res.name };
+                                        setGuarantors(prev => [...prev, newGuarantor]);
+                                        setGuarantorSearch(trimmed);
+                                        onChange({ ...data, guarantorId: res.id, guarantorName: trimmed });
+                                        setFeedback({ isOpen: true, type: 'success', title: 'Created', message: `Guarantor '${trimmed}' added successfully.` });
+                                    } else {
+                                        onChange({ ...data, guarantorId: '', guarantorName: trimmed });
+                                        if (res.error !== 'Permission Denied') {
+                                            setFeedback({ isOpen: true, type: 'error', title: 'Creation Failed', message: res.error || 'Could not save guarantor to master list.' });
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('Auto-create guarantor failed:', err);
+                                    setFeedback({ isOpen: true, type: 'error', title: 'Failed', message: 'Could not auto-create guarantor.' });
+                                } finally {
+                                    setIsCreatingGuarantor(false);
+                                }
+                            }}
+                        />
+                        {isCreatingGuarantor && (
+                            <p className="text-xs text-primary font-medium mt-1 animate-pulse pl-10">Creating new guarantor...</p>
+                        )}
+                        {isGuarantorOpen && (
+                            <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg ring-1 ring-black/5">
+                                <li
+                                    className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer font-medium"
+                                    onMouseDown={() => {
+                                        setGuarantorSearch('');
+                                        onChange({ ...data, guarantorId: '', guarantorName: '' });
+                                        setIsGuarantorOpen(false);
+                                    }}
+                                >
+                                    None (Self-pay)
+                                </li>
+                                {guarantors.filter(g => g.Name.toLowerCase().includes(guarantorSearch.toLowerCase())).map(g => (
+                                    <li
+                                        key={g.id}
+                                        className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary cursor-pointer border-t border-slate-100 transition-colors"
+                                        onMouseDown={() => {
+                                            setGuarantorSearch(g.Name);
+                                            onChange({ ...data, guarantorId: g.id, guarantorName: g.Name });
+                                            setIsGuarantorOpen(false);
+                                        }}
+                                    >
+                                        {g.Name}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+
+                {/* 2. Name fields */}
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-slate-700">
@@ -92,7 +184,7 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                     </div>
                 </div>
 
-                {/* 2. DOB */}
+                {/* 3. DOB & Gender */}
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700">Date of Birth</label>
                     <div className="relative group">
@@ -103,7 +195,6 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                     </div>
                 </div>
 
-                {/* 3. Gender */}
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700">Gender</label>
                     <div className="relative group">
@@ -124,117 +215,8 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                     </div>
                 </div>
 
-                {/* 4. Company, Contact, Email Split fields */}
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Guarantor */}
-                    <div className="space-y-1.5 relative">
-                        <label className="text-sm font-medium text-slate-700">Guarantor Company <span className="text-slate-400 font-normal">(optional)</span></label>
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                                <Shield className="h-4 w-4" />
-                            </div>
-                            <input
-                                type="text"
-                                className={inputClasses}
-                                placeholder="Search & select guarantor..."
-                                value={guarantorSearch}
-                                onChange={(e) => {
-                                    const val = e.target.value.toUpperCase();
-                                    setGuarantorSearch(val);
-                                    setIsGuarantorOpen(true);
-                                    if (!val) {
-                                        onChange({ ...data, guarantorId: '', guarantorName: '' });
-                                    }
-                                }}
-                                onFocus={() => setIsGuarantorOpen(true)}
-                                onBlur={async () => {
-                                    // Delay to allow dropdown click to register first
-                                    await new Promise(r => setTimeout(r, 200));
-                                    setIsGuarantorOpen(false);
-
-                                    const trimmed = guarantorSearch.trim();
-                                    if (!trimmed) return;
-
-                                    // Check if already selected from the list
-                                    if (data.guarantorName === trimmed) return;
-
-                                    // Check if name matches an existing guarantor (case-insensitive)
-                                    const existing = guarantors.find(g => g.Name.toLowerCase() === trimmed.toLowerCase());
-                                    if (existing) {
-                                        setGuarantorSearch(existing.Name);
-                                        onChange({ ...data, guarantorId: existing.id, guarantorName: existing.Name });
-                                        return;
-                                    }
-
-                                    // Auto-create the new guarantor
-                                    setIsCreatingGuarantor(true);
-                                    try {
-                                        const res = await addGuarantorAction({ Name: trimmed });
-                                        if (res.success) {
-                                            const newGuarantor = { id: res.id, Name: res.name };
-                                            setGuarantors(prev => [...prev, newGuarantor]);
-                                            setGuarantorSearch(trimmed);
-                                            onChange({ ...data, guarantorId: res.id, guarantorName: trimmed });
-                                            setFeedback({ isOpen: true, type: 'success', title: 'Created', message: `Guarantor '${trimmed}' added successfully.` });
-                                        } else {
-                                            // If creation fails (e.g., Permission Denied), we still allow the user to use the name for this quotation
-                                            onChange({ ...data, guarantorId: '', guarantorName: trimmed });
-                                            
-                                            // Handle feedback based on error type
-                                            if (res.error === 'Permission Denied') {
-                                                console.warn('User lacks permission to add to master guarantor list. Using as one-time name.');
-                                            } else {
-                                                setFeedback({ 
-                                                    isOpen: true, 
-                                                    type: 'error', 
-                                                    title: 'Creation Failed', 
-                                                    message: res.error || 'Could not save guarantor to master list.' 
-                                                });
-                                            }
-                                        }
-                                    } catch (err) {
-                                        console.error('Auto-create guarantor failed:', err);
-                                        setFeedback({ isOpen: true, type: 'error', title: 'Failed', message: 'Could not auto-create guarantor.' });
-                                    } finally {
-                                        setIsCreatingGuarantor(false);
-                                    }
-                                }}
-                            />
-                            {/* Dropdown list */}
-                            {isCreatingGuarantor && (
-                                <p className="text-xs text-primary font-medium mt-1 animate-pulse">Creating new guarantor...</p>
-                            )}
-                            {isGuarantorOpen && (
-                                <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg ring-1 ring-black/5">
-                                    <li
-                                        className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer font-medium"
-                                        onMouseDown={() => {
-                                            setGuarantorSearch('');
-                                            onChange({ ...data, guarantorId: '', guarantorName: '' });
-                                            setIsGuarantorOpen(false);
-                                        }}
-                                    >
-                                        None (Self-pay)
-                                    </li>
-                                    {guarantors.filter(g => g.Name.toLowerCase().includes(guarantorSearch.toLowerCase())).map(g => (
-                                        <li
-                                            key={g.id}
-                                            className="px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary cursor-pointer border-t border-slate-100 transition-colors"
-                                            onMouseDown={() => {
-                                                setGuarantorSearch(g.Name);
-                                                onChange({ ...data, guarantorId: g.id, guarantorName: g.Name });
-                                                setIsGuarantorOpen(false);
-                                            }}
-                                        >
-                                            {g.Name}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Contact Number */}
+                {/* 4. Contact Info */}
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-slate-700">
                             Contact Number <span className="text-red-500">*</span>
@@ -247,7 +229,6 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                         </div>
                     </div>
 
-                    {/* Email */}
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-slate-700">Email Address</label>
                         <div className="relative group">
@@ -259,31 +240,21 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                     </div>
                 </div>
 
-                {/* 6. Address */}
+                {/* 5. Remarks (Required) */}
                 <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Address</label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-[14px] top-[14px] flex items-start pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                            <MapPin className="h-4 w-4" />
-                        </div>
-                        <textarea name="address" rows={2} className={`${inputClasses} pl-10 resize-none py-3`} placeholder="Street, City, Province" value={data.address || ''} onChange={handleChange} />
-                    </div>
-                </div>
-
-                {/* 7. Remarks */}
-                <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">
-                        Remarks / Complaint <span className="text-slate-400 font-normal">(optional)</span>
+                    <label className="text-sm font-bold text-brand-dark-blue flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-brand-muted-blue" />
+                        Remarks <span className="text-red-500">*</span>
                     </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                             <FileText className="h-4 w-4" />
                         </div>
-                        <input type="text" name="notes" className={inputClasses} placeholder="Brief description" value={data.notes || ''} onChange={handleChange} />
+                        <input type="text" name="notes" className={inputClasses} placeholder="Brief description of patient's request or condition" value={data.notes || ''} onChange={handleChange} required />
                     </div>
                 </div>
 
-                {/* 8. One Time Visit Checkbox */}
+                {/* 6. One Time Visit Checkbox */}
                 <div className="md:col-span-2 mt-2">
                     <label className="flex items-center gap-3 cursor-pointer group p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
                         <div className="relative flex items-center">

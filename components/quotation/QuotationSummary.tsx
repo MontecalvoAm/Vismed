@@ -20,6 +20,8 @@ export default function QuotationSummary({
         title: '',
         message: ''
     });
+    const [isSaved, setIsSaved] = useState(false);
+    const [savedId, setSavedId] = useState<string | null>(editId || null);
 
     const grandTotal = items.reduce((sum, i) => sum + i.subtotal, 0);
 
@@ -44,8 +46,8 @@ export default function QuotationSummary({
         CustomerGender: customer.gender || '',
         CustomerEmail: customer.email || '',
         CustomerPhone: customer.phone || '',
-        CustomerAddress: customer.address || '',
-        CustomerNotes: customer.notes || '',
+        CustomerAddress: '',
+        CustomerNotes: [customer.notes, notes].filter(Boolean).join(' | '),
         HospitalName: 'VisayasMed Hospital',
         PreparedBy: preparedBy || '',
         Items: items.map((i) => {
@@ -73,12 +75,18 @@ export default function QuotationSummary({
     };
 
     const saveRecord = async () => {
+        if (isSaved && savedId) return true;
+
         try {
             const { saveQuotationAction } = await import('@/app/actions/quotationActions');
-            const res = await saveQuotationAction(recordFormat, isEditing, editId);
+            const res = await saveQuotationAction(recordFormat, isEditing || !!savedId, savedId);
             if (!res.success) {
                 console.error('Failed to save quotation:', res.error);
                 return false;
+            }
+            if (res.id) {
+                setSavedId(res.id);
+                setIsSaved(true);
             }
             return true;
         } catch (dbErr) {
@@ -144,11 +152,16 @@ export default function QuotationSummary({
 
             pdf.save(pdfFilename);
 
-            const saved = await saveRecord();
-            if (saved) {
-                setFeedback({ isOpen: true, type: 'success', title: 'Saved', message: 'Quotation saved successfully.' });
+            // Only show "Saved" feedback if it was actually saved just now
+            if (!isSaved) {
+                const saved = await saveRecord();
+                if (saved) {
+                    setFeedback({ isOpen: true, type: 'success', title: 'Saved', message: 'Quotation saved successfully.' });
+                } else {
+                    setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Quotation document generated but failed to save to database.' });
+                }
             } else {
-                setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Quotation document generated but failed to save to database.' });
+                setFeedback({ isOpen: true, type: 'success', title: 'Downloaded', message: 'Quotation PDF has been downloaded.' });
             }
         } catch (err) {
             console.error('PDF generation error:', err);
@@ -177,7 +190,12 @@ export default function QuotationSummary({
                 window.open(stringPdf.toString(), '_blank');
 
                 // Set the feedback status immediately
-                setFeedback({ isOpen: true, type: 'success', title: 'Saved & Printed', message: 'Quotation saved and ready for printing.' });
+                setFeedback({ 
+                    isOpen: true, 
+                    type: 'success', 
+                    title: isSaved ? 'Printed' : 'Saved & Printed', 
+                    message: isSaved ? 'Document ready for printing.' : 'Quotation saved and ready for printing.' 
+                });
 
             } else {
                 setFeedback({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to save to database. Printing aborted.' });

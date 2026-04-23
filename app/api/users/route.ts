@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
             Action: 'CREATE_USER',
             Module: MODULE_NAME,
             Target: newUser.UserID,
+            Description: `Created User: ${FirstName} ${LastName} (${Email})`,
             Details: `New User Created: ${FirstName} ${LastName} (${Email})`,
             UserID: authUser?.UserID,
             IpAddress: clientIp,

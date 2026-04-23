@@ -25,7 +25,7 @@ const PdfGeneratorRenderer = forwardRef<HTMLDivElement, PdfGeneratorRendererProp
         const grandTotal = record.Total || 0;
         const preparedBy = record.PreparedBy || '—';
 
-        const sysGenId = quotationNo || record.id || `VISMED-${Date.now()}`;
+        const sysGenId = quotationNo || record.DocumentNo || record.id || `VISMED-${Date.now()}`;
         // Fallback date to creation date if dateIssued is not provided (used for redownloads)
         const dateString = dateIssued || (record.CreatedAt ? new Date(record.CreatedAt).toISOString() : new Date().toISOString());
         const displayDate = new Date(dateString).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });

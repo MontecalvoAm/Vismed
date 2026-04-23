@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
             Action: 'CREATE_GUARANTOR',
             Module: MODULE_NAME,
             Target: newGuarantor.GuarantorID,
+            Description: `Created Guarantor: ${GuarantorName}`,
             Details: JSON.stringify({ GuarantorName, DiscountPercentage, DiscountAmount, Description, SortOrder, IsActive }),
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),

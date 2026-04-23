@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
 import { invalidatePermCache } from '@/lib/permCache';
 import bcrypt from 'bcryptjs';
-import { createAuditLog } from '@/lib/firestore/audit';
+import { createAuditLog, diffDescription } from '@/lib/firestore/audit';
 import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Users';
@@ -77,8 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
         // Fetch old user data for auditing
         const oldUser = await prisma.m_User.findUnique({
-            where: { UserID: resolvedParams.id },
-            select: { FirstName: true, LastName: true }
+            where: { UserID: resolvedParams.id }
         });
 
         const oldName = oldUser ? `${oldUser.FirstName || ''} ${oldUser.LastName || ''}`.trim() : 'Unknown';
@@ -89,11 +88,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             data: updateData
         });
 
+        const labels = {
+            Email: 'Email',
+            FirstName: 'First Name',
+            LastName: 'Last Name',
+            RoleID: 'Role',
+            DepartmentID: 'Department',
+            IsActive: 'Active Status',
+            Password: 'Password'
+        };
+        const diff = oldUser ? await diffDescription(oldUser, { ...body, Password: Password ? '[HIDDEN]' : undefined }, labels) : 'User details updated';
+
         await createAuditLog({
             Action: 'UPDATE_USER',
             Module: MODULE_NAME,
             Target: resolvedParams.id,
+            Description: `Updated User ${newName || oldName}: ${diff}`,
             Details: `Update User From: ${oldName} to ${newName}`,
+            OldValues: oldUser,
+            NewValues: body,
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),
         });
@@ -113,6 +126,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     try {
         const resolvedParams = await params;
 
+        const oldUser = await prisma.m_User.findUnique({
+            where: { UserID: resolvedParams.id }
+        });
+
         await prisma.m_User.update({
             where: { UserID: resolvedParams.id },
             data: {
@@ -126,6 +143,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             Action: 'DELETE_USER',
             Module: MODULE_NAME,
             Target: resolvedParams.id,
+            Description: `Deleted User: ${oldUser?.FirstName} ${oldUser?.LastName} (${oldUser?.Email})`,
             Details: 'User marked as deleted',
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),

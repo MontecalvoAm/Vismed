@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/serverAuth';
-import { createAuditLog } from '@/lib/firestore/audit';
+import { createAuditLog, diffDescription } from '@/lib/firestore/audit';
 import { getClientIp } from '@/lib/rateLimit';
 
 const MODULE_NAME = 'Services';
@@ -14,6 +14,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         const resolvedParams = await params;
         const body = await req.json();
         const { DepartmentID, ServiceName, Price, Unit, Description, IsActive } = body;
+
+        // Fetch old values for auditing
+        const oldService = await prisma.m_Service.findUnique({
+            where: { ServiceID: resolvedParams.id }
+        });
 
         await prisma.m_Service.update({
             where: { ServiceID: resolvedParams.id },
@@ -28,11 +33,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             },
         });
 
+        const labels = {
+            ServiceName: 'Name',
+            DepartmentID: 'Department',
+            Price: 'Price',
+            Unit: 'Unit',
+            Description: 'Description',
+            IsActive: 'Active Status'
+        };
+
+        const diff = oldService ? await diffDescription(oldService, { 
+            ...body, 
+            Price: Price !== undefined ? Number(Price) : undefined 
+        }, labels) : 'Service details updated';
+
         await createAuditLog({
             Action: 'UPDATE_SERVICE',
             Module: MODULE_NAME,
             Target: resolvedParams.id,
+            Description: `Updated Service ${ServiceName || oldService?.ServiceName || resolvedParams.id}: ${diff}`,
             Details: JSON.stringify({ ServiceName, DepartmentID, Price, Unit, Description, IsActive }),
+            OldValues: oldService,
+            NewValues: body,
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),
         });
@@ -50,6 +72,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     try {
         const resolvedParams = await params;
 
+        const oldService = await prisma.m_Service.findUnique({
+            where: { ServiceID: resolvedParams.id }
+        });
+
         // Soft delete
         await prisma.m_Service.update({
             where: { ServiceID: resolvedParams.id },
@@ -64,6 +90,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             Action: 'DELETE_SERVICE',
             Module: MODULE_NAME,
             Target: resolvedParams.id,
+            Description: `Deleted Service: ${oldService?.ServiceName || resolvedParams.id}`,
             Details: 'Service marked as deleted',
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),
