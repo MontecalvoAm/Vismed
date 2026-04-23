@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
             Action: 'CREATE_SERVICE',
             Module: MODULE_NAME,
             Target: newService.ServiceID,
+            Description: `Created Service: ${ServiceName} in Department ${DepartmentID}`,
             Details: JSON.stringify({ ServiceName, DepartmentID, Price, Unit, Description, IsActive }),
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),

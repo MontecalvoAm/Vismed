@@ -19,6 +19,23 @@ export interface AuditLogEntry {
 
 
 
+function formatValue(val: any) {
+    if (val === null || val === undefined) return 'None';
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    if (typeof val === 'number') return val.toString();
+    return String(val);
+}
+
+export async function diffDescription(oldValues: any, newValues: any, labels: Record<string, string>): Promise<string> {
+    const changes: string[] = [];
+    for (const key in labels) {
+        if (newValues[key] !== undefined && oldValues[key] !== newValues[key]) {
+            changes.push(`${labels[key]} (${formatValue(oldValues[key])} → ${formatValue(newValues[key])})`);
+        }
+    }
+    return changes.length > 0 ? changes.join(', ') : 'No changes detected';
+}
+
 /**
  * Create a general audit log entry (Server Side)
  */

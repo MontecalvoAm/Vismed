@@ -23,17 +23,6 @@ function getTodayFormatted() {
     });
 }
 
-const initialCustomer = {
-    name: '', dob: '', gender: '', phone: '', email: '',
-    address: '', notes: '', preparedBy: '',
-    quotationNo: generateQuotationNo(),
-    date: getTodayFormatted(),
-    guarantorId: '',
-    guarantorName: '',
-    sessionType: 'Per-session',
-    isOneTimeVisit: false
-};
-
 type ItemType = {
     id: string;
     deptId: string;
@@ -49,17 +38,29 @@ type ItemType = {
 export default function QuotationClient({ initialDepartments, initialServices, initialGuarantors }: { initialDepartments: any[], initialServices: any[], initialGuarantors: any[] }) {
     const { user } = useAuth();
     const [step, setStep] = useState(0);
-    const [customer, setCustomer] = useState(initialCustomer);
+
+    const [customer, setCustomer] = useState(() => ({
+        firstName: '', middleName: '', lastName: '', 
+        dob: '', gender: '', phone: '', email: '',
+        notes: '', preparedBy: user ? `${user.FirstName} ${user.LastName}`.trim() : '',
+        quotationNo: generateQuotationNo(),
+        date: getTodayFormatted(),
+        guarantorId: '',
+        guarantorName: '',
+        sessionType: 'Per-session',
+        isOneTimeVisit: false
+    }));
+
     const [items, setItems] = useState<ItemType[]>([]);
 
     useEffect(() => {
-        if (user) {
+        if (user && !customer.preparedBy) {
             setCustomer((prev) => ({
                 ...prev,
                 preparedBy: `${user.FirstName} ${user.LastName}`.trim(),
             }));
         }
-    }, [user]);
+    }, [user, customer.preparedBy]);
 
     const goNext = () => setStep((s) => Math.min(s + 1, 2));
     const goBack = () => setStep((s) => Math.max(s - 1, 0));

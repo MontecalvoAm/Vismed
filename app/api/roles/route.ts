@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
             Action: 'CREATE_ROLE',
             Module: 'Roles',
             Target: newRole.RoleID,
+            Description: `Created Role: ${RoleName}`,
             Details: JSON.stringify({ RoleName, Description, IsActive }),
             UserID: authUser?.UserID,
             IpAddress: getClientIp(req),
