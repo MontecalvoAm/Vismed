@@ -265,7 +265,7 @@ export default function ReportsTable({
                                                         {(q.CustomerName ?? '?').charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <div className="font-medium text-gray-900">{q.CustomerName}</div>
+                                                        <div className="font-medium text-gray-900">{(q.CustomerName || "").toUpperCase()}</div>
                                                         <div className="text-xs text-gray-400">{q.CustomerEmail || q.CustomerPhone}</div>
                                                     </div>
                                                 </div>
@@ -279,7 +279,7 @@ export default function ReportsTable({
                                             <td className="px-5 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-1 text-xs text-gray-600">
                                                     <Shield className="w-3 h-3" />
-                                                    {q.GuarantorName || <span className="italic text-gray-300">—</span>}
+                                                    {q.GuarantorName ? q.GuarantorName.toUpperCase() : <span className="italic text-gray-300">—</span>}
                                                 </div>
                                             </td>
                                             <td className="px-5 py-4 whitespace-nowrap text-right font-semibold text-gray-900">

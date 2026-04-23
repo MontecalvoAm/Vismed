@@ -31,7 +31,13 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
     }, [data.guarantorName]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        let updates = { [e.target.name]: e.target.value };
+        const { name, value } = e.target;
+        
+        // Fields that should be forced to uppercase
+        const uppercaseFields = ['firstName', 'middleName', 'lastName', 'address', 'notes'];
+        const finalValue = uppercaseFields.includes(name) ? value.toUpperCase() : value;
+
+        let updates = { [name]: finalValue };
         onChange({ ...data, ...updates });
     };
 
@@ -133,9 +139,10 @@ export default function CustomerInfoForm({ data, onChange, onNext, initialGuaran
                                 placeholder="Search & select guarantor..."
                                 value={guarantorSearch}
                                 onChange={(e) => {
-                                    setGuarantorSearch(e.target.value);
+                                    const val = e.target.value.toUpperCase();
+                                    setGuarantorSearch(val);
                                     setIsGuarantorOpen(true);
-                                    if (!e.target.value) {
+                                    if (!val) {
                                         onChange({ ...data, guarantorId: '', guarantorName: '' });
                                     }
                                 }}
