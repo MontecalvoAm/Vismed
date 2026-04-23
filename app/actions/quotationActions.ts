@@ -14,7 +14,19 @@ export async function saveQuotationAction(data: any, isEditing: boolean = false,
         const now = new Date();
 
         // Separate items from main quotation data if nested
-        const { Items, ...quotationData } = data;
+        const { Items, ...rawQuotationData } = data;
+
+        // Force normalization to uppercase for humanized text fields
+        const quotationData = {
+            ...rawQuotationData,
+            CustomerFirstName: (rawQuotationData.CustomerFirstName || "").toUpperCase(),
+            CustomerMiddleName: (rawQuotationData.CustomerMiddleName || "").toUpperCase(),
+            CustomerLastName: (rawQuotationData.CustomerLastName || "").toUpperCase(),
+            CustomerName: (rawQuotationData.CustomerName || "").toUpperCase(),
+            CustomerAddress: (rawQuotationData.CustomerAddress || "").toUpperCase(),
+            CustomerNotes: (rawQuotationData.CustomerNotes || "").toUpperCase(),
+            GuarantorName: (rawQuotationData.GuarantorName || "").toUpperCase(),
+        };
 
         let resultId = editId;
 
